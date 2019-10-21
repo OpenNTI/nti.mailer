@@ -1,0 +1,22 @@
+<!-- -*- mode: nxml -*- -->
+<configure	xmlns="http://namespaces.zope.org/zope"
+			xmlns:i18n="http://namespaces.zope.org/i18n"
+			xmlns:zcml="http://namespaces.zope.org/zcml">
+
+	<include package="zope.component" file="meta.zcml" />
+	<include package="zope.security" file="meta.zcml" />
+	<include package="zope.component" />
+	<include package="zope.security" />
+	
+	<utility component="._verp" />
+
+	<!-- We make the fallback available too -->
+	<utility component="._default_template_mailer" name='default' />
+
+	<!--
+		 The no-name, default, utility takes impersonation into
+		 account on all sites.
+	-->
+	<utility factory=".filtered_template_mailer.ImpersonatedMailer" />
+
+</configure>
