@@ -21,8 +21,8 @@ def _read(fname):
 setup(
     name='nti.mailer',
     version=_read('version.txt').strip(),
-    author='Jason Madden',
-    author_email='jason@nextthought.com',
+    author='Josh Zuech',
+    author_email='josh.zuech@nextthought.com',
     description="NTI mailer",
     long_description=(
         _read('README.rst')
@@ -48,17 +48,12 @@ setup(
     packages=find_packages('src'),
     package_dir={'': 'src'},
     include_package_data=True,
-    namespace_packages=['nti'],
+    namespace_packages=['nti', 'nti.mailer'],
     tests_require=TESTS_REQUIRE,
     install_requires=[
         'setuptools',
         'BTrees',
-        'nti.base',
-        'nti.containers',
-        'nti.coremetadata',
         'nti.schema',
-        'nti.site',
-        'nti.zope_catalog',
         'six',
         'ZODB',
         'zope.annotation',

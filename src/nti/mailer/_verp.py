@@ -7,9 +7,6 @@ Implementation of the :class:`nti.mailer.interfaces.IVERP` protocol.
 """
 
 from __future__ import print_function, unicode_literals, absolute_import, division
-__docformat__ = "restructuredtext en"
-
-logger = __import__('logging').getLogger(__name__)
 
 import rfc822
 
@@ -22,21 +19,18 @@ from zope import interface
 
 from zope.security.interfaces import IPrincipal
 
-# TODO: break this dep
-from nti.appserver.policies.site_policies import find_site_policy
-
 from nti.mailer.interfaces import IVERP
+from nti.mailer.interfaces import IMailerPolicy
 from nti.mailer.interfaces import IEmailAddressable
+
+logger = __import__('logging').getLogger(__name__)
 
 
 def _get_signer_secret(default_secret="$Id$"):
-    # TODO: Break these dependencies
-    from nti.appserver.interfaces import IApplicationSettings
-    site_manager = component.getGlobalSiteManager()
-    settings = site_manager.queryUtility(IApplicationSettings) or {}
-    # XXX Reusing the cookie secret, we should probably have our own
-    secret_key = settings.get('cookie_secret', default_secret)
-    return secret_key
+    policy = component.queryUtility(IMailerPolicy)
+    if policy is not None:
+        return policy.get_signer_secret()
+    return default_secret
 
 
 import zlib
@@ -85,6 +79,15 @@ def _make_signer(default_key='$Id$',
     return signer
 
 
+def _get_default_sender():
+    """
+    Get the default sender from :class:`IMailerPolicy`.
+    """
+    policy = component.queryUtility(IMailerPolicy)
+    return  policy is not None \
+        and policy.get_default_sender()
+
+
 def _find_default_realname(request=None):
     """
     Called when the given fromaddr does not have a realname portion.
@@ -92,15 +95,12 @@ def _find_default_realname(request=None):
     is one, otherwise we have a hardcoded default.
     """
     realname = None
-    policy, policy_name = find_site_policy(request=request)
-    if      policy is not None \
-        and policy_name \
-        and getattr(policy, 'DEFAULT_EMAIL_SENDER', None):
-        realname, _ = rfc822.parseaddr(policy.DEFAULT_EMAIL_SENDER)
+    default_sender = _get_default_sender()
+    if default_sender:
+        realname, _ = rfc822.parseaddr(default_sender)
         if realname is not None:
             realname = realname.strip()
-    brand_name = getattr(policy, 'BRAND', None)
-    return realname or brand_name or "NextThought"
+    return realname or "NextThought"
 
 
 def __make_signer(default_key, **kwargs):

@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from __future__ import print_function, unicode_literals, absolute_import, division
-__docformat__ = "restructuredtext en"
+from __future__ import division
+from __future__ import print_function
+from __future__ import absolute_import
 
 # disable: accessing protected members, too many methods
 # pylint: disable=W0212,R0904
@@ -18,6 +19,7 @@ from nti.mailer._verp import verp_from_recipients
 from nti.mailer._verp import principal_ids_from_verp
 
 from nti.mailer.interfaces import EmailAddressablePrincipal
+
 
 class TestVerp(unittest.TestCase):
 
@@ -39,14 +41,10 @@ class TestVerp(unittest.TestCase):
 		pids = principal_ids_from_verp(fromaddr)
 		assert_that(pids, is_(()))
 
-	@fudge.patch('nti.mailer._verp.find_site_policy',
+	@fudge.patch('nti.mailer._verp._get_default_sender',
 				 'nti.mailer._verp._get_signer_secret')
 	def test_verp_from_recipients_in_site_uses_default_sender_realname(self, mock_find, mock_secret):
-
-		class Policy(object):
-			DEFAULT_EMAIL_SENDER = 'Janux <janux@ou.edu>'
-
-		mock_find.is_callable().returns((Policy, 'janux.ou.edu'))
+		mock_find.is_callable().returns('Janux <janux@ou.edu>')
 		mock_secret.is_callable().returns('abc123')
 
 		prin = EmailAddressablePrincipal.__new__(EmailAddressablePrincipal)
@@ -84,23 +82,3 @@ class TestVerp(unittest.TestCase):
 									default_key='alpha.nextthought.com')
 
 		assert_that(addr, is_('"Janux" <no-reply+label+label2@nextthought.com>'))
-
-	@fudge.patch('nti.mailer._verp.find_site_policy',
-				 'nti.mailer._verp._get_signer_secret')
-	def test_brand_is_used_for_sender_rename(self, mock_find, mock_secret):
-
-		class Policy(object):
-			BRAND = 'MyBrand'
-
-		mock_find.is_callable().returns((Policy, 'janux.ou.edu'))
-		mock_secret.is_callable().returns('abc123')
-
-		prin = EmailAddressablePrincipal.__new__(EmailAddressablePrincipal)
-		prin.email = 'foo@bar.com'
-		prin.id = 'foo'
-
-		addr = verp_from_recipients('no-reply@nextthought.com',
-									(prin,),
-									default_key='alpha.nextthought.com')
-
-		assert_that(addr, is_('"MyBrand" <no-reply+foo.pRjtUA@nextthought.com>'))

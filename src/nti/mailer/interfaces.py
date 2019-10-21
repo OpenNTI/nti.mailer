@@ -9,15 +9,11 @@ but the relevant parts are re-exported from this package.
 .. $Id$
 """
 
-from __future__ import print_function, absolute_import, division
-
-__docformat__ = "restructuredtext en"
-
-logger = __import__('logging').getLogger(__name__)
+from __future__ import division
+from __future__ import print_function
+from __future__ import absolute_import
 
 from zope import interface
-
-from zope.schema import NativeStringLine
 
 from zope.security.interfaces import IPrincipal
 
@@ -40,6 +36,23 @@ IMailDelivery = IMailDelivery  # [re]export, primarily for testing
 
 from nti.schema.field import TextLine
 # pylint:disable=I0011,E0213
+
+logger = __import__('logging').getLogger(__name__)
+
+
+class IPrincipalEmailValidation(interface.Interface):
+    """
+    A principal adapter that validates the given principal has a valid email.
+    Currently, we only refuse to send an email if the given principal is
+    adaptable to `IPrincipalEmailValidation` and this func returns False.
+
+    This is useful to filter out bounced emails or users without an email.
+    """
+
+    def is_valid_email():
+        """
+        Returns a bool whether or not the given principal has a valid email.
+        """
 
 
 class IEmailAddressable(interface.Interface):
@@ -88,6 +101,8 @@ class EmailAddressablePrincipal(object):
         return str('Principal(%s/%s)' % (self.id, self.email))
 
     __repr__ = __str__
+
+EmailAddresablePrincipal = EmailAddressablePrincipal
 
 
 class ITemplatedMailer(interface.Interface):
@@ -227,6 +242,7 @@ class IMailerPolicy(interface.Interface):
     Mailer policy utility
     """
 
+    # Deprecated
     DEFAULT_EMAIL_SENDER = TextLine(title=u'An optional email sender',
                                     description=u'An email address used to send emails to users'
                                                 u'such as account creation, both on behalf of this'
@@ -234,41 +250,14 @@ class IMailerPolicy(interface.Interface):
                                     required=False,
                                     default=None)
 
+    def get_default_sender():
+        """
+        Returns a default sender to be used when no fromaddr
+        is provided.
+        """
 
-    NEW_USER_CREATED_EMAIL_TEMPLATE_BASE_NAME = NativeStringLine(title=u'The base template for sending '
-                                                                       u'an email to a newly created user.',
-                                                                 description=u'The asset spec for a template having both text and'
-                                                                             u'HTML versions. If the asset spec is a bare name'
-                                                                             u'like "foobar", it is assumed to be located in the'
-                                                                             u'``templates`` directory in the package this object'
-                                                                             u'is located in. Otherwise, it can be a complete spec'
-                                                                             u'such as "the.package:other_dir/foobar"',
-                                                                 default='nti.appserver:templates/new_user_created',
-                                                                 required=False)
+    def get_signer_secret():
+        """
+        Returns a signer secret, used for verp.
+        """
 
-    NEW_USER_CREATED_EMAIL_SUBJECT = TextLine(title=u'The email subject for new user emails.',
-                                              required=False,
-                                              default=u'Welcome to NextThought')
-
-    NEW_USER_CREATED_BCC = TextLine(title=u'The bcc address for new user emails.',
-                                    default=None,
-                                    required=False)
-
-    PASSWORD_RESET_EMAIL_TEMPLATE_BASE_NAME = NativeStringLine(title=u'The base template for password reset emails.',
-                                                               default='password_reset_email')
-
-    PASSWORD_RESET_EMAIL_SUBJECT = TextLine(title=u'The subject for password reset emails.',
-                                            default=u'NextThought Password Reset',
-                                            required=False)
-
-    SUPPORT_EMAIL = TextLine(title=u'The support email.',
-                             default=u'support@nextthought.com',
-                             required=False)
-
-    USERNAME_RECOVERY_EMAIL_TEMPLATE_BASE_NAME = NativeStringLine(title=u'The base template for username recovery emails.',
-                                                                  default='username_recovery_email',
-                                                                  required=False)
-
-    USERNAME_RECOVERY_EMAIL_SUBJECT = TextLine(title=u'The email subject for username recovery emails.',
-                                               default=u'Username Reminder',
-                                               required=False)

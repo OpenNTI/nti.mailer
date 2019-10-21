@@ -30,12 +30,13 @@ from zope import interface
 
 from zope.dottedname import resolve as dottedname
 
-from nti.dataserver.users.interfaces import IUserProfile
-
+from nti.mailer.interfaces import IVERP
 from nti.mailer.interfaces import IMailer
 from nti.mailer.interfaces import IMailDelivery
+from nti.mailer.interfaces import IMailerPolicy
 from nti.mailer.interfaces import ITemplatedMailer
 from nti.mailer.interfaces import IEmailAddressable
+from nti.mailer.interfaces import IPrincipalEmailValidation
 
 logger = __import__('logging').getLogger(__name__)
 
@@ -119,11 +120,10 @@ def _as_recipient_list(recipients):
         # accept a raw string
         recipients = recipients if is_nonstr_iter(recipients) else [recipients]
         for recipient in recipients:
-            # If we have a user object, explicitly check if `email_verified` is
-            # `False`. `True` means it is verified and `None` means it is unknown.
-            # We do not want to send to users with known bounced emails.
-            profile = IUserProfile(recipient, None)
-            if profile is not None and profile.email_verified == False:
+            # If we have a principal object, explicitly check if `is_valid_email`.
+            email_validation = IPrincipalEmailValidation(recipient, None)
+            if      email_validation is not None \
+                and not email_validation.is_valid_email():
                 continue
             # Convert any IEmailAddressable into their email, and strip
             # empty strings
@@ -308,10 +308,6 @@ def _send_pyramid_mailer_mail(message, recipients=None, request=None):
     _send_mail(pyramid_mail_message=message,
                recipients=recipients, request=request)
     return message
-
-
-from nti.mailer.interfaces import IVERP
-from nti.mailer.interfaces import IMailerPolicy
 
 
 def _compute_from(*args, **kwargs):
