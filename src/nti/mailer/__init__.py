@@ -1,1 +1,4 @@
-__import__('pkg_resources').declare_namespace(__name__)  # pragma: no cover
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+from __future__ import print_function, absolute_import, division

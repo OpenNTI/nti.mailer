@@ -28,9 +28,10 @@ logger = __import__('logging').getLogger(__name__)
 
 def _get_signer_secret(default_secret="$Id$"):
     policy = component.queryUtility(IMailerPolicy)
+    result = None
     if policy is not None:
-        return policy.get_signer_secret()
-    return default_secret
+        result = policy.get_signer_secret()
+    return result or default_secret
 
 
 import zlib
