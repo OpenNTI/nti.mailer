@@ -19,14 +19,6 @@ from nti.mailer.interfaces import ITemplatedMailer
 logger = __import__('logging').getLogger(__name__)
 
 
-def _get_current_request():
-    try:
-        from pyramid.threadlocal import get_current_request
-        return get_current_request()
-    except ImportError:
-        return None
-
-
 @interface.implementer(ITemplatedMailer)
 class _BaseFilteredMailer(object):
 

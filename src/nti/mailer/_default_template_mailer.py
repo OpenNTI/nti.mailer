@@ -132,6 +132,7 @@ def _as_recipient_list(recipients):
                 result.append(recipient)
     return result
 
+as_recipient_list = _as_recipient_list
 
 def create_simple_html_text_email(base_template,
                                   subject='',
