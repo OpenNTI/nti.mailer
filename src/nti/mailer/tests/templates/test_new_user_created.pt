@@ -1,0 +1,89 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+	  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:i18n="http://xml.zope.org/namespaces/i18n"
+      i18n:domain="nti.dataserver"
+      i18n:source="en">
+    <head>
+	<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+	<title>Welcome To NextThought</title>
+	<style>
+	 #green-bar {
+	     background-color: #89be3c;
+	     width: 100%;
+	     height: 5px;
+	     margin-left: -30px;
+	     padding-right: 40px;
+	 }
+	 #logo-bar {
+	     margin-top: 20px;
+	     margin-bottom: 30px;
+	 }
+	 body {
+	     margin-left: 30px;
+	     margin-right: 0px;
+	     font-family: Arial, sans-serif;
+	     font-size: 14pt;
+	     color: #757474;
+	 }
+	 a {
+	     text-decoration: none;
+	     color: #3fb3f6;
+	 }
+	 .tterm, strong {
+	     font-weight: bold;
+	     color: #494949;
+	 }
+	 h1, h2, h3, h4, h5, h6 {
+	     font-weight: bold;
+	 }
+	</style>
+    </head>
+    <body>
+	<div>
+	    <div id="green-bar"></div>
+	    <div id="logo-bar">
+		<img src="http://d2ixlfeu83tci.cloudfront.net/images/email_logo.png" width="177" height="25"
+			  alt="NextThought Logo" />
+	    </div>
+	</div>
+	<p i18n:translate="">Hi <span tal:content="options/profile/realname" i18n:name="name" class="realname tterm">John Doe</span>!</p>
+
+	<p i18n:translate="">
+	    Thank you for creating your new account and welcome to
+	    NextThought!
+	</p>
+
+	<p>
+	    <strong i18n:translate="">Username:</strong> <span tal:content="options/user/username" class="tterm-color">username</span> <br />
+	    <strong i18n:translate="">Log in at:</strong> <a href="http://nextthought.com"
+							     tal:attributes="href request/application_url"
+							     tal:content="request/application_url">http://nextthought.com</a>
+	</p>
+	<p i18n:translate="">
+	    NextThought offers interactive content and rich features
+	    to make learning both social and personal.
+	</p>
+
+	<p>
+	    Please verify your email address <a tal:attributes="href options/href">here</a>. Doing so will
+	    help us maintain the security of your account.
+	</p>
+
+	<p>
+	    <span i18n:translate="">Sincerely,</span><br />
+	    NextThought
+	</p>
+
+	<p style="font-size: smaller">
+	    <span i18n:translate="">If you feel this email was sent in error, or this account was created
+		without your consent, you may email us at
+		<a i18n:name="support_email" href="mailto:support@nextthought.com"
+		   tal:content="options/support_email|default"
+		   tal:attributes="href string:mailto:${options/support_email|default}">support@nextthought.com</a>
+	    </span>
+	</p>
+
+    </body>
+</html>
