@@ -19,15 +19,26 @@ from zope.publisher.interfaces.browser import IBrowserRequest
 
 from zope.security.interfaces import IPrincipal
 
-from nti.dataserver.users.interfaces import IUserProfile
-
 from nti.mailer._default_template_mailer import _pyramid_message_to_message
 from nti.mailer._default_template_mailer import create_simple_html_text_email
 
 from nti.mailer.interfaces import IEmailAddressable
 from nti.mailer.interfaces import EmailAddressablePrincipal
+from nti.mailer.interfaces import IPrincipalEmailValidation
 
 from nti.app.testing.layers  import AppLayerTest
+
+
+@interface.implementer(IPrincipalEmailValidation)
+class TestEmailAddressablePrincipal(EmailAddressablePrincipal):
+
+	def __init__(self, user, is_valid=True, *args, **kwargs):
+		super(TestEmailAddressablePrincipal, self).__init__(user, *args, **kwargs)
+		self.is_valid = is_valid
+
+	def is_valid_email(self):
+		return self.is_valid
+
 
 @interface.implementer(IBrowserRequest)
 class Request(object):
@@ -40,6 +51,7 @@ class Request(object):
 
 	def get(self, key, default=None):
 		return default
+
 
 class TestEmail(AppLayerTest):
 
@@ -84,7 +96,7 @@ class TestEmail(AppLayerTest):
 
 	def test_create_email_with_verp(self):
 
-		@interface.implementer(IPrincipal, IEmailAddressable, IUserProfile)
+		@interface.implementer(IPrincipal, IEmailAddressable)
 		class User(object):
 			username = 'the_user'
 			id = 'the_user'
@@ -101,12 +113,12 @@ class TestEmail(AppLayerTest):
 		token_url = 'url_to_verify_email'
 		msg = create_simple_html_text_email('new_user_created',
 											subject='Hi there',
-											recipients=[EmailAddressablePrincipal(user)],
+											recipients=[TestEmailAddressablePrincipal(user, is_valid=True)],
 											template_args={'user': user,
-														'profile': profile,
-														'context': user,
-														'href': token_url,
-														'support_email': 'support_email' },
+														   'profile': profile,
+														   'context': user,
+														   'href': token_url,
+														   'support_email': 'support_email' },
 											package='nti.appserver',
 											request=request)
 		assert_that(msg, is_(not_none()))
@@ -127,11 +139,11 @@ class TestEmail(AppLayerTest):
 		# The first part will be predictable, the rest won't
 		assert_that(msg.sender, contains_string('"NextThought" <no-reply+'))
 
-		#
-		user.email_verified = False
+		# Test invalid
+		invalid_user = TestEmailAddressablePrincipal(user, is_valid=False)
 		msg = create_simple_html_text_email('new_user_created',
 											subject='Hi there',
-											recipients=[user],
+											recipients=[invalid_user],
 											template_args={'user': user,
 														'profile': profile,
 														'context': user,

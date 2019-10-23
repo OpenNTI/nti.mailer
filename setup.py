@@ -52,8 +52,11 @@ setup(
     tests_require=TESTS_REQUIRE,
     install_requires=[
         'setuptools',
+        'boto',
         'BTrees',
+        'itsdangerous',
         'nti.schema',
+        'repoze.sendmail',
         'six',
         'ZODB',
         'zope.annotation',
