@@ -10,6 +10,9 @@ TESTS_REQUIRE = [
     'fudge',
     'nti.testing',
     'zope.testrunner',
+    'nti.app.pyramid_zope',
+    'pyramid_chameleon',
+    'pyramid_mako'
 ]
 
 
@@ -57,6 +60,9 @@ setup(
         'itsdangerous',
         'nti.schema',
         'repoze.sendmail',
+        'premailer',
+        'pyramid',
+        'pyramid_mailer',
         'six',
         'ZODB',
         'zope.annotation',
