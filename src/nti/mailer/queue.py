@@ -121,6 +121,7 @@ class MailerProcess(object):
 
     def _do_process_queue(self):
         mailer = self.mailer_factory()
+        assert mailer
         try:
             # Connect the mailer
             getattr(mailer, 'sesconn')
