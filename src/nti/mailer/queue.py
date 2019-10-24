@@ -248,7 +248,7 @@ class MailerWatcher(MailerProcess):
         gevent.get_hub().join()
 
 def run_process():  # pragma NO COVERAGE
-    logging.basicConfig(stream=sys.stderr, format='%(asctime)s %(levelname)s %(message)s', level=logging.DEBUG)
+    logging.basicConfig(stream=sys.stderr, format='%(asctime)s %(levelname)s %(message)s', level=logging.INFO)
 
     parser = argparse.ArgumentParser(description='Run a process that processes the mail queue on some interval')
     parser.add_argument('queue_path', help='The path to the maildir', action='store')
@@ -261,7 +261,7 @@ def run_process():  # pragma NO COVERAGE
     app.run()
 
 def run_console():  # pragma NO COVERAGE
-    logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s')
+    logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', level=logging.INFO)
     app = ConsoleApp()
     app.main()
 
