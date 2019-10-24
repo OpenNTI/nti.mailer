@@ -145,7 +145,7 @@ def run_process():  # pragma NO COVERAGE
 
     parser = argparse.ArgumentParser(description='Run a process that processes the mail queue on some interval')
     parser.add_argument('queue_path', help='The path to the maildir', action='store')
-    parser.add_argument('-s', '--seconds', help='The number of seconds to wait before processing the queue again.', type=int)
+    parser.add_argument('-s', '--seconds', help='The number of seconds to wait before processing the queue again.', type=int, default=120)
     parser.add_argument('-r', '--sesregion', help='The SES region to connect to.')
     arguments = parser.parse_args()
     
