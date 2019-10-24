@@ -133,17 +133,11 @@ class MailerProcess(object):
     def _do_process_queue(self):
         mailer = self.mailer_factory()
         assert mailer
-        try:
-            # Connect the mailer
-            try:
-                getattr(mailer, 'sesconn')
-            except AttributeError:
-                pass
-                
+        try:               
             processor = QueueProcessor(mailer,
                                        self.queue_path, # Note this gets ignored by the Maildir factory we send
                                        Maildir=self._maildir_factory)
-            logger.info('Processing mail queue %s' % (processor.maildir.path))
+            logger.info('Processing messages %s' % (processor.maildir.path))
             processor.send_messages()
         finally:
             try:
