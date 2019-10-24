@@ -135,15 +135,21 @@ class MailerProcess(object):
         assert mailer
         try:
             # Connect the mailer
-            getattr(mailer, 'sesconn')
-            
+            try:
+                getattr(mailer, 'sesconn')
+            except AttributeError:
+                pass
+                
             processor = QueueProcessor(mailer,
                                        self.queue_path, # Note this gets ignored by the Maildir factory we send
                                        Maildir=self._maildir_factory)
             logger.info('Processing mail queue %s' % (processor.maildir.path))
             processor.send_messages()
         finally:
-            mailer.close()
+            try:
+                mailer.close()
+            except AttributeError:
+                pass
             mailer = None
 
     def run(self):
@@ -170,7 +176,7 @@ class MailerWatcher(MailerProcess):
             logger.info('Maildir watcher detected "st_mtime" change')
             self._do_process_queue()
 
-    def run(self):
+    def run(self, seconds=0):
         # Process once initially in case we have things in the queue already
         self._do_process_queue()
 
@@ -183,7 +189,7 @@ class MailerWatcher(MailerProcess):
 
         # Start our watcher and join forever
         self.watcher.start(self._youve_got_mail, self.watcher)
-        hub.join()
+        hub.join(seconds)
 
 def run_process():  # pragma NO COVERAGE
     logging.basicConfig(stream=sys.stderr, format='%(asctime)s %(levelname)s %(message)s', level=logging.DEBUG)
