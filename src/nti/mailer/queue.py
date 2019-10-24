@@ -152,6 +152,25 @@ class MailerProcess(object):
             logger.debug('Going to sleep for %i seconds' % (self.sleep_seconds))
             time.sleep(self.sleep_seconds)
 
+def _stat_modified_time(attrs):
+    """
+    libev and libuv expose different attributes.
+    Specifically modified time is st_mtime or st_mtim respectively.
+    In libuv we need to look at st_mtim.tv_sec
+    """
+    try:
+        return attrs.st_mtime
+    except AttributeError:
+        return attrs.st_mtim.tv_sec
+
+def _stat_watcher_modified(watcher):
+    """
+    Inspects the stat watcher to see if the modified time
+    has changed between the current attrs and the prev attrs
+    """
+    return _stat_modified_time(watcher.prev) != _stat_modified_time(watcher.attr)
+
+
 class MailerWatcher(MailerProcess):
     """
     A Mailer processor that watches for changes in the mail directory
@@ -210,14 +229,14 @@ class MailerWatcher(MailerProcess):
         else:
             self.debouncer_count += 1
             logger.debug('Deferring queue processing because it was run recently')
-            
 
     def _stat_change_observed(self):
         # On certain file systems we will see stat changes
         # for access times which we don't care about. We really
-        # only care about modified times ``st_mtime``
-        if self.watcher.prev.st_mtime != self.watcher.attr.st_mtime:
-            logger.debug('Maildir watcher detected "st_mtime" change')
+        # only care about modified times.`
+
+        if _stat_watcher_modified(self.watcher):
+            logger.debug('Maildir watcher detected MailDir modification')
             self._youve_got_mail()
 
     def run(self):
