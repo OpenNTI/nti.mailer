@@ -164,32 +164,75 @@ class MailerWatcher(MailerProcess):
     using gevent stat watchers.
     """
     watcher = None
+    debouncer = None
+    debouncer_count = 0
 
-    def _youve_got_mail(self, watcher):
-        assert watcher is self.watcher
-        
+    max_process_frequency_seconds = 10
+
+    def __init__(self, *args, **kwargs):
+        super(MailerWatcher, self).__init__(*args, **kwargs)
+        hub = gevent.get_hub()
+        to_watch = os.path.join(self.queue_path, str('new'))
+        self.watcher = hub.loop.stat(to_watch)
+
+    def _start_watching(self):
+        assert self.watcher
+        logger.debug('Starting watcher for MailDir %s', self.watcher.path)
+        self.watcher.start(self._stat_change_observed)
+
+    def _stop_watching(self):
+        assert self.watcher
+        logger.debug('Stopping watcher for MailDir %s', self.watcher.path)
+        self.watcher.stop()
+
+    def _do_process_queue(self):
+        # The path we are watching has been modified
+        #self._stop_watching()
+        super(MailerWatcher, self)._do_process_queue()
+        #self._start_watching()
+
+    def _youve_got_mail(self):
+        # We've detected we have mail. We want to debounce
+        # this so we aren't going crazy. Process the queue at most ever
+        # self.max_process_frequency_seconds
+        # We use a gevent timer to accomplish this.
+
+        hub = gevent.get_hub()
+        if self.debouncer is None:
+            self.debouncer = hub.loop.timer(self.max_process_frequency_seconds)
+
+        def _timer_fired(self):
+            self.debouncer.stop()
+            self.debouncer = None
+            if self.debouncer_count > 0:
+                self.debouncer_count = 0
+                self._youve_got_mail()
+
+        if self.debouncer.active is False:
+            self.debouncer_count = 0
+            self.debouncer.start(_timer_fired, self)
+            logger.info('Processing mail queue. Queue processing paused for %i seconds', self.max_process_frequency_seconds)
+            self._do_process_queue()
+        else:
+            self.debouncer_count += 1
+            logger.debug('Deferring queue processing because it was run recently')
+            
+
+    def _stat_change_observed(self):
         # On certain file systems we will see stat changes
         # for access times which we don't care about. We really
         # only care about modified times ``st_mtime``
-        if watcher.prev.st_mtime != watcher.attr.st_mtime:
-            # The path we are watching has been modified
-            logger.info('Maildir watcher detected "st_mtime" change')
-            self._do_process_queue()
+        if self.watcher.prev.st_mtime != self.watcher.attr.st_mtime:
+            logger.debug('Maildir watcher detected "st_mtime" change')
+            self._youve_got_mail()
 
-    def run(self, seconds=0):
+    def run(self):
         # Process once initially in case we have things in the queue already
         self._do_process_queue()
 
-        # Spawn stat watcher that looks at the `new` dir.
-        # unfortunately maildir doesn't expose that so we have to compute it
-        hub = gevent.get_hub()
-        to_watch = os.path.join(self.queue_path, str('new'))
-        logger.info('Setting up watcher for MailDir %s', to_watch)
-        self.watcher = hub.loop.stat(to_watch)
-
-        # Start our watcher and join forever
-        self.watcher.start(self._youve_got_mail, self.watcher)
-        hub.join(seconds)
+        # Note we don't call start watching because _do_process_queue handles that
+        self._start_watching()
+        gevent.get_hub().join()
 
 def run_process():  # pragma NO COVERAGE
     logging.basicConfig(stream=sys.stderr, format='%(asctime)s %(levelname)s %(message)s', level=logging.DEBUG)
