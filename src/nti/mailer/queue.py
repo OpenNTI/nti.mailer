@@ -12,6 +12,10 @@ __docformat__ = "restructuredtext en"
 
 logger = __import__('logging').getLogger(__name__)
 
+import gevent
+
+import os
+
 import time
 
 from zope import interface
@@ -52,8 +56,12 @@ class SESMailer(object):
         return conn
 
     def close(self):
-        self.sesconn.close()
-        del self.__dict__['sesconn']
+        # Close it if we have it, but don't connect trying to close
+        try:
+            _sesconn = self.__dict__.pop('sesconn')
+            _sesconn.close()
+        except KeyError:
+            pass
 
     def send(self, fromaddr, toaddrs, message):
         if not isinstance(message, Message):  # pragma: no cover
@@ -96,7 +104,7 @@ import logging
 
 class ConsoleApp(_ConsoleApp):
 
-    def __init__(self, argv=None):  # pylint: disable=I0011,W0231
+    def __init__(self, argv=None):  # pylint: disable=unused-argument
         if argv is None:
             argv = sys.argv
         # Bypass the superclass, don't try to construct an SMTP mailer
@@ -107,10 +115,13 @@ class ConsoleApp(_ConsoleApp):
 
 
 class MailerProcess(object):
+    """
+    A mailer processor that dumps the queue on a provided interval.
+    """
 
     _exit = False
     
-    def __init__(self, mailer_factory, queue_path, sleep_seconds=120):  # pylint: disable=I0011,W0231
+    def __init__(self, mailer_factory, queue_path, sleep_seconds=120):  # pylint: disable=unused-argument
         self.mailer_factory = mailer_factory
         self.sleep_seconds = sleep_seconds
         self.queue_path = queue_path
@@ -139,24 +150,56 @@ class MailerProcess(object):
         while not self._exit:
             self._do_process_queue()
             logger.debug('Going to sleep for %i seconds' % (self.sleep_seconds))
-            time.sleep(self.sleep_seconds)        
+            time.sleep(self.sleep_seconds)
+
+class MailerWatcher(MailerProcess):
+    """
+    A Mailer processor that watches for changes in the mail directory
+    using gevent stat watchers.
+    """
+    watcher = None
+
+    def _youve_got_mail(self, watcher):
+        assert watcher is self.watcher
+        
+        # On certain file systems we will see stat changes
+        # for access times which we don't care about. We really
+        # only care about modified times ``st_mtime``
+        if watcher.prev.st_mtime != watcher.attr.st_mtime:
+            # The path we are watching has been modified
+            logger.info('Maildir watcher detected "st_mtime" change')
+            self._do_process_queue()
+
+    def run(self):
+        # Process once initially in case we have things in the queue already
+        self._do_process_queue()
+
+        # Spawn stat watcher that looks at the `new` dir.
+        # unfortunately maildir doesn't expose that so we have to compute it
+        hub = gevent.get_hub()
+        to_watch = os.path.join(self.queue_path, str('new'))
+        logger.info('Setting up watcher for MailDir %s', to_watch)
+        self.watcher = hub.loop.stat(to_watch)
+
+        # Start our watcher and join forever
+        self.watcher.start(self._youve_got_mail, self.watcher)
+        hub.join()
 
 def run_process():  # pragma NO COVERAGE
-    logging.basicConfig(stream=sys.stderr, format='%(asctime)s %(message)s', level=logging.DEBUG)
+    logging.basicConfig(stream=sys.stderr, format='%(asctime)s %(levelname)s %(message)s', level=logging.DEBUG)
 
     parser = argparse.ArgumentParser(description='Run a process that processes the mail queue on some interval')
     parser.add_argument('queue_path', help='The path to the maildir', action='store')
-    parser.add_argument('-s', '--seconds', help='The number of seconds to wait before processing the queue again.', type=int, default=120)
     parser.add_argument('-r', '--sesregion', help='The SES region to connect to.')
     arguments = parser.parse_args()
     
     _mailer_factory = SESMailer if not arguments.sesregion else (lambda: SESMailer(arguments.sesregion))
     
-    app = MailerProcess(_mailer_factory, arguments.queue_path, sleep_seconds=arguments.seconds)
+    app = MailerWatcher(_mailer_factory, arguments.queue_path)
     app.run()
 
 def run_console():  # pragma NO COVERAGE
-    logging.basicConfig(format='%(asctime)s %(message)s')
+    logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s')
     app = ConsoleApp()
     app.main()
 
