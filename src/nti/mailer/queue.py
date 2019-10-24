@@ -171,6 +171,9 @@ def _stat_watcher_modified(watcher):
     return _stat_modified_time(watcher.prev) != _stat_modified_time(watcher.attr)
 
 
+_MINIMUM_DEBOUNCE_INTERVAL_SECONDS = 10
+
+
 class MailerWatcher(MailerProcess):
     """
     A Mailer processor that watches for changes in the mail directory
@@ -180,7 +183,7 @@ class MailerWatcher(MailerProcess):
     debouncer = None
     debouncer_count = 0
 
-    max_process_frequency_seconds = 10
+    max_process_frequency_seconds = _MINIMUM_DEBOUNCE_INTERVAL_SECONDS
 
     def __init__(self, *args, **kwargs):
         super(MailerWatcher, self).__init__(*args, **kwargs)
@@ -247,24 +250,46 @@ class MailerWatcher(MailerProcess):
         self._start_watching()
         gevent.get_hub().join()
 
-def run_process():  # pragma NO COVERAGE
-    logging.basicConfig(stream=sys.stderr, format='%(asctime)s %(levelname)s %(message)s', level=logging.INFO)
 
+def run_process():  # pragma NO COVERAGE
+    
     parser = argparse.ArgumentParser(description='Run a process that processes the mail queue on some interval')
-    parser.add_argument('queue_path', help='The path to the maildir', action='store')
-    parser.add_argument('-r', '--sesregion', help='The SES region to connect to.')
+    parser.add_argument('queue_path',
+                        help='The path to the maildir',
+                        action='store')
+    parser.add_argument('-r', '--sesregion',
+                        help='The SES region to connect to.')
+    parser.add_argument('-v', '--verbose',
+                        help='Include debug logging',
+                        action='store_true')
+    parser.add_argument('-w', '--debounce-interval',
+                        dest='interval',
+                        help='The number of seconds to wait between dumping the queue.',
+                        action='store',
+                        type=int)
+    
     arguments = parser.parse_args()
+
+    log_level = logging.INFO
+    if arguments.verbose:
+        log_level = logging.DEBUG
+
+    logging.basicConfig(stream=sys.stderr, format='%(asctime)s %(levelname)s %(message)s', level=log_level)
     
     _mailer_factory = SESMailer if not arguments.sesregion else (lambda: SESMailer(arguments.sesregion))
     
     app = MailerWatcher(_mailer_factory, arguments.queue_path)
+
+    if arguments.interval:
+        app.max_process_frequency_seconds = max(_MINIMUM_DEBOUNCE_INTERVAL_SECONDS, arguments.interval)
+
+    logger.info('Using debounce interval of %i', app.max_process_frequency_seconds)
     app.run()
 
 def run_console():  # pragma NO COVERAGE
-    logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', level=logging.INFO)
+    logging.basicConfig(steam=sys.stderr, format='%(asctime)s %(levelname)s %(message)s', level=logging.INFO)
     app = ConsoleApp()
     app.main()
-
 
 if __name__ == "__main__":  # pragma NO COVERAGE
     run_console()
