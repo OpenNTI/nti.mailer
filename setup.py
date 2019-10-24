@@ -3,6 +3,9 @@ from setuptools import setup, find_packages
 
 entry_points = {
     'console_scripts': [
+        'nti_mailer_qp_console = nti.mailer.queue:run_console',
+        'nti_mailer_qp_process = nti.mailer.queue:run_process',
+        'nti_qp = nti.mailer.queue:run_console' # backwards compatibility
     ],
 }
 
@@ -12,7 +15,8 @@ TESTS_REQUIRE = [
     'zope.testrunner',
     'nti.app.pyramid_zope',
     'pyramid_chameleon',
-    'pyramid_mako'
+    'pyramid_mako',
+    'nose'
 ]
 
 

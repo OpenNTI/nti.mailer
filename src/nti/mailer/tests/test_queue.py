@@ -10,8 +10,14 @@ __docformat__ = "restructuredtext en"
 from hamcrest import raises
 from hamcrest import calling
 from hamcrest import assert_that
+from hamcrest import is_
+from hamcrest import is_not
+from hamcrest import none
 
 import fudge
+
+from nose.tools import assert_raises
+
 import unittest
 
 import email
@@ -41,3 +47,34 @@ class TestMailer(unittest.TestCase):
 
 		assert_that(calling(mailer.send).with_args('from', ('to',), self.message),
 					raises(SMTPResponseException))
+
+        def test_ses_close(self):
+                mailer = SESMailer()
+                conn = mailer.sesconn
+
+                # We have a connection
+                assert_that(conn._connection, is_not(none()))
+
+                mailer.close()
+
+                # No connection after closing
+                assert_that(conn._connection, is_(none()))
+
+        def test_region(self):
+                # Defaults to us-east-1
+                mailer = SESMailer()
+
+                assert_that(mailer.sesconn._connection[0], is_('email.us-east-1.amazonaws.com'))
+
+                mailer = SESMailer('us-west-2')
+                assert_that(mailer.sesconn._connection[0], is_('email.us-west-2.amazonaws.com'))
+
+                mailer = SESMailer('bad-region')
+                with assert_raises(AssertionError):
+                        getattr(mailer, 'sesconn')
+
+                
+
+                
+
+                

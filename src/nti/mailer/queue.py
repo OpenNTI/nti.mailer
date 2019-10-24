@@ -12,6 +12,8 @@ __docformat__ = "restructuredtext en"
 
 logger = __import__('logging').getLogger(__name__)
 
+import time
+
 from zope import interface
 
 import smtplib
@@ -25,7 +27,10 @@ from repoze.sendmail.encoding import encode_message
 
 from repoze.sendmail.interfaces import IMailer
 
+from repoze.sendmail.maildir import Maildir
+
 from repoze.sendmail.queue import ConsoleApp as _ConsoleApp
+from repoze.sendmail.queue import QueueProcessor
 
 from zope.cachedescriptors.property import Lazy
 
@@ -37,12 +42,18 @@ class SESMailer(object):
     see also :mod:`nti.app.bulkemail.process`.
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, region='us-east-1'):
+        self.region=region
 
     @Lazy
     def sesconn(self):
-        return boto.ses.connect_to_region('us-east-1')
+        conn = boto.ses.connect_to_region(self.region)
+        assert conn
+        return conn
+
+    def close(self):
+        self.sesconn.close()
+        del self.__dict__['sesconn']
 
     def send(self, fromaddr, toaddrs, message):
         if not isinstance(message, Message):  # pragma: no cover
@@ -79,9 +90,9 @@ class SESMailer(object):
             raise smtplib.SMTPResponseException(553, 'Blacklisted address')
 
 
+import argparse
 import sys
 import logging
-
 
 class ConsoleApp(_ConsoleApp):
 
@@ -94,6 +105,54 @@ class ConsoleApp(_ConsoleApp):
         self.mailer = SESMailer()
         getattr(self.mailer, 'sesconn')
 
+
+class MailerProcess(object):
+
+    _exit = False
+    
+    def __init__(self, mailer_factory, queue_path, sleep_seconds=120):  # pylint: disable=I0011,W0231
+        self.mailer_factory = mailer_factory
+        self.sleep_seconds = sleep_seconds
+        self.queue_path = queue_path
+        self.mail_dir = Maildir(self.queue_path, create=True)
+
+    def _maildir_factory(self, *args, **kwargs):
+        return self.mail_dir
+
+    def _do_process_queue(self):
+        mailer = self.mailer_factory()
+        try:
+            # Connect the mailer
+            getattr(mailer, 'sesconn')
+            
+            processor = QueueProcessor(mailer,
+                                       self.queue_path, # Note this gets ignored by the Maildir factory we send
+                                       Maildir=self._maildir_factory)
+            logger.info('Processing mail queue %s' % (processor.maildir.path))
+            processor.send_messages()
+        finally:
+            mailer.close()
+            mailer = None
+
+    def run(self):
+        while not self._exit:
+            self._do_process_queue()
+            logger.debug('Going to sleep for %i seconds' % (self.sleep_seconds))
+            time.sleep(self.sleep_seconds)        
+
+def run_process():  # pragma NO COVERAGE
+    logging.basicConfig(stream=sys.stderr, format='%(asctime)s %(message)s', level=logging.DEBUG)
+
+    parser = argparse.ArgumentParser(description='Run a process that processes the mail queue on some interval')
+    parser.add_argument('queue_path', help='The path to the maildir', action='store')
+    parser.add_argument('-s', '--seconds', help='The number of seconds to wait before processing the queue again.', type=int)
+    parser.add_argument('-r', '--sesregion', help='The SES region to connect to.')
+    arguments = parser.parse_args()
+    
+    _mailer_factory = SESMailer if not arguments.sesregion else (lambda: SESMailer(arguments.sesregion))
+    
+    app = MailerProcess(_mailer_factory, arguments.queue_path, sleep_seconds=arguments.seconds)
+    app.run()
 
 def run_console():  # pragma NO COVERAGE
     logging.basicConfig(format='%(asctime)s %(message)s')
