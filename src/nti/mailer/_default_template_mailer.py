@@ -335,7 +335,7 @@ def _get_from_address(pyramid_mail_message, recipients, request):
         # It would be the unnamed IComponents
         policy = component.queryUtility(IMailerPolicy)
         if policy:
-            fromaddr = getattr(policy, 'DEFAULT_EMAIL_SENDER', None)
+            fromaddr = policy.get_default_sender()
     if not fromaddr:
         fromaddr = getattr(pyramidmailer, 'default_sender', None)
 
