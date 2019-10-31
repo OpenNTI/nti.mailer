@@ -250,6 +250,11 @@ class MailerWatcher(MailerProcess):
         self._start_watching()
         gevent.get_hub().join()
 
+_LOG_LEVELS = [logging.ERROR, logging.WARN, logging.INFO, logging.DEBUG]
+
+def _log_level_for_verbosity(verbosity=0):
+    return _LOG_LEVELS[min(max(verbosity, 0), len(_LOG_LEVELS) - 1)]
+    
 
 def run_process():  # pragma NO COVERAGE
     
@@ -260,8 +265,9 @@ def run_process():  # pragma NO COVERAGE
     parser.add_argument('-r', '--sesregion',
                         help='The SES region to connect to.')
     parser.add_argument('-v', '--verbose',
-                        help='Include debug logging',
-                        action='store_true')
+                        help='How verbose to log.',
+                        action='count',
+                        default=1)
     parser.add_argument('-w', '--debounce-interval',
                         dest='interval',
                         help='The number of seconds to wait between dumping the queue.',
@@ -270,10 +276,7 @@ def run_process():  # pragma NO COVERAGE
     
     arguments = parser.parse_args()
 
-    log_level = logging.INFO
-    if arguments.verbose:
-        log_level = logging.DEBUG
-
+    log_level = _log_level_for_verbosity(arguments.verbose)
     logging.basicConfig(stream=sys.stderr, format='%(asctime)s %(levelname)s %(message)s', level=log_level)
     
     _mailer_factory = SESMailer if not arguments.sesregion else (lambda: SESMailer(arguments.sesregion))
@@ -287,7 +290,7 @@ def run_process():  # pragma NO COVERAGE
     app.run()
 
 def run_console():  # pragma NO COVERAGE
-    logging.basicConfig(steam=sys.stderr, format='%(asctime)s %(levelname)s %(message)s', level=logging.INFO)
+    logging.basicConfig(steam=sys.stderr, format='%(asctime)s %(levelname)s %(message)s', level=logging.WARN)
     app = ConsoleApp()
     app.main()
 
