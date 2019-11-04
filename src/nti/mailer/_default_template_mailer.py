@@ -37,6 +37,7 @@ from nti.mailer.interfaces import IMailerPolicy
 from nti.mailer.interfaces import ITemplatedMailer
 from nti.mailer.interfaces import IEmailAddressable
 from nti.mailer.interfaces import IPrincipalEmailValidation
+from nti.mailer.interfaces import IMailerTemplateArgsUtility
 
 logger = __import__('logging').getLogger(__name__)
 
@@ -191,6 +192,8 @@ def create_simple_html_text_email(base_template,
         if the_context_name == 'nti_context' and 'context' in template_args:
             result[the_context_name] = template_args['context']
             del result['context']
+        for args_utility in component.getAllUtilitiesRegisteredFor(IMailerTemplateArgsUtility):
+            result.update(args_utility.get_template_args())
         return result
 
     def do_render(pkg):

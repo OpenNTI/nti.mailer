@@ -261,3 +261,13 @@ class IMailerPolicy(interface.Interface):
         Returns a signer secret, used for verp.
         """
 
+
+class IMailerTemplateArgsUtility(interface.Interface):
+    """
+    A utility that can supplement mail template args.
+    """
+
+    def get_template_args():
+        """
+        Returns a (possibly empty) dict of supplemental template args.
+        """
