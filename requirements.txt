@@ -5,3 +5,4 @@
 -e git+https://github.com/NextThought/nti.dublincore.git@master#egg=nti.dublincore
 -e git+https://github.com/NextThought/nti.coremetadata.git@master#egg=nti.coremetadata
 -e git+https://github.com/NextThought/nti.contenttypes.reports.git@master#egg=nti.contenttypes.reports
+-e git+https://github.com/NextThought/nti.app.pyramid_zope.git@master#egg=nti.app.pyramid_zope
