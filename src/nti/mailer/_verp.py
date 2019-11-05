@@ -6,9 +6,20 @@ Implementation of the :class:`nti.mailer.interfaces.IVERP` protocol.
 .. $Id$
 """
 
-from __future__ import print_function, unicode_literals, absolute_import, division
+from __future__ import print_function, absolute_import, division
 
-import rfc822
+try:
+    from rfc822 import parseaddr
+    from rfc822 import dump_address_pair as formataddr
+except ImportError:
+    from email.utils import parseaddr as py3_parseaddr #Python3
+    from email.utils import formataddr as py3_formataddr  #Python3
+
+    def parseaddr(addr, encoding='utf-8'):
+        addr = addr.decode(encoding)
+        name, address = py3_parseaddr(addr)
+        return name.encode(encoding), address.encode(encoding)
+        
 
 from itsdangerous.exc import BadSignature
 
@@ -98,7 +109,7 @@ def _find_default_realname(request=None):
     realname = None
     default_sender = _get_default_sender()
     if default_sender:
-        realname, _ = rfc822.parseaddr(default_sender)
+        realname, _ = parseaddr(default_sender)
         if realname is not None:
             realname = realname.strip()
     return realname or "NextThought"
@@ -134,12 +145,12 @@ def _sign(signer, principal_ids):
 
 
 def realname_from_recipients(fromaddr, recipients, request=None):
-    realname, addr = rfc822.parseaddr(fromaddr)
+    realname, addr = parseaddr(fromaddr)
     if not realname and not addr:
         raise ValueError("Invalid fromaddr", fromaddr)
     if not realname:
         realname = _find_default_realname(request=request)
-    return rfc822.dump_address_pair((realname, addr))
+    return formataddr((realname, addr))
 
 
 def verp_from_recipients(fromaddr,
@@ -148,7 +159,7 @@ def verp_from_recipients(fromaddr,
                          default_key=None):
 
     realname = realname_from_recipients(fromaddr, recipients, request=request)
-    realname, addr = rfc822.parseaddr(realname)
+    realname, addr = parseaddr(realname)
 
     # We could special case the common case of recipients of length
     # one if it is a string: that typically means we're sending to the current
@@ -178,33 +189,36 @@ def verp_from_recipients(fromaddr,
         # ensures we want the last '+' on parsing.
         addr = local + '+' + principal_id + '@' + domain
 
-    return rfc822.dump_address_pair((realname, addr))
+    return formataddr((realname, addr))
 
 
 def principal_ids_from_verp(fromaddr,
                             request=None,
                             default_key=None):
-    if not fromaddr or '+' not in fromaddr:
+    # fromaddr is a bytestring here
+    
+    if not fromaddr or b'+' not in fromaddr:
         return ()
 
-    _, addr = rfc822.parseaddr(fromaddr)
-    if '+' not in addr:
+    # In python 3 parseaddr wants a string so we need to decode
+    _, addr = parseaddr(fromaddr)
+    if b'+' not in addr:
         return ()
 
     signer = __make_signer(default_key)
 
     # Split on our last '+' to allow user defined labels.
     signed_and_encoded = addr.rsplit(b'+', 1)[1].split(b'@')[0]
-
     if signer.sep not in signed_and_encoded:
         return ()
 
     encoded_pids, sig = signed_and_encoded.rsplit(signer.sep, 1)
-    decoded_pids = urllib_parse.unquote(encoded_pids)
+    decoded_pids = urllib_parse.unquote(encoded_pids.decode('utf-8')).encode('utf-8')
 
     signed = decoded_pids + signer.sep + sig
     try:
         pids = signer.unsign(signed)
+        pids = pids.decode('utf-8')
     except BadSignature:
         return ()
     else:
