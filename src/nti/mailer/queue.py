@@ -242,13 +242,13 @@ class MailerWatcher(MailerProcess):
             logger.debug('Maildir watcher detected MailDir modification')
             self._youve_got_mail()
 
-    def run(self):
+    def run(self, seconds=None):
         # Process once initially in case we have things in the queue already
         self._do_process_queue()
 
         # Note we don't call start watching because _do_process_queue handles that
         self._start_watching()
-        gevent.get_hub().join()
+        gevent.get_hub().join(seconds)
 
 _LOG_LEVELS = [logging.ERROR, logging.WARN, logging.INFO, logging.DEBUG]
 
