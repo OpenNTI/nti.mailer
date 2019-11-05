@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from __future__ import print_function, unicode_literals, absolute_import, division
+from __future__ import print_function, absolute_import, division
 
 # disable: accessing protected members, too many methods
 # pylint: disable=W0212,R0904
@@ -131,7 +131,7 @@ class TestEmail(unittest.TestCase):
 
                 class Profile(object):
                         # Note the umlaut e
-                        realname = 'Suzë Schwartz'
+                        realname = u'Suzë Schwartz'
 
                 user = User()
                 profile = Profile()
@@ -173,7 +173,7 @@ class TestEmail(unittest.TestCase):
                         email = 'thomas.stockdale@nextthought.com'  # this address encodes badly to simple base64
 
                 class Profile(object):
-                        realname = 'Suzë Schwartz'
+                        realname = u'Suzë Schwartz'
 
                 user = User()
                 profile = Profile()

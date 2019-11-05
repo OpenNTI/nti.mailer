@@ -12,13 +12,20 @@ try:
     from rfc822 import parseaddr
     from rfc822 import dump_address_pair as formataddr
 except ImportError:
-    from email.utils import parseaddr as py3_parseaddr #Python3
-    from email.utils import formataddr as py3_formataddr  #Python3
+    from email.utils import parseaddr #Python3
+    from email.utils import formataddr  #Python3
 
-    def parseaddr(addr, encoding='utf-8'):
-        addr = addr.decode(encoding)
-        name, address = py3_parseaddr(addr)
-        return name.encode(encoding), address.encode(encoding)
+    # def parseaddr(addr, encoding='utf-8'):
+    #     try:
+    #         addr = addr.decode(encoding)
+    #     except AttributeError:
+    #         pass
+    #     name, address = py3_parseaddr(addr)
+    #     return name.encode(encoding), address.encode(encoding)
+
+    # def formataddr(parts, encoding='utf-8'):
+    #     parts = (parts[0].decode(encoding), parts[1].decode(encoding))
+    #     return py3_formataddr(parts).encode(encoding)
         
 
 from itsdangerous.exc import BadSignature
@@ -195,30 +202,27 @@ def verp_from_recipients(fromaddr,
 def principal_ids_from_verp(fromaddr,
                             request=None,
                             default_key=None):
-    # fromaddr is a bytestring here
-    
-    if not fromaddr or b'+' not in fromaddr:
+    if not fromaddr or '+' not in fromaddr:
         return ()
 
-    # In python 3 parseaddr wants a string so we need to decode
     _, addr = parseaddr(fromaddr)
-    if b'+' not in addr:
+    if '+' not in addr:
         return ()
 
     signer = __make_signer(default_key)
 
     # Split on our last '+' to allow user defined labels.
     signed_and_encoded = addr.rsplit(b'+', 1)[1].split(b'@')[0]
+
     if signer.sep not in signed_and_encoded:
         return ()
 
     encoded_pids, sig = signed_and_encoded.rsplit(signer.sep, 1)
-    decoded_pids = urllib_parse.unquote(encoded_pids.decode('utf-8')).encode('utf-8')
+    decoded_pids = urllib_parse.unquote(encoded_pids)
 
     signed = decoded_pids + signer.sep + sig
     try:
         pids = signer.unsign(signed)
-        pids = pids.decode('utf-8')
     except BadSignature:
         return ()
     else:
