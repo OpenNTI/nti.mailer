@@ -15,6 +15,11 @@ from hamcrest import assert_that
 import fudge
 import unittest
 
+try:
+    from rfc822 import parseaddr
+except ImportError:
+    from email.utils import parseaddr #Python3
+
 from nti.mailer._verp import verp_from_recipients
 from nti.mailer._verp import principal_ids_from_verp
 
@@ -23,62 +28,72 @@ from nti.mailer.interfaces import EmailAddressablePrincipal
 
 class TestVerp(unittest.TestCase):
 
-	def test_pids_from_verp_email(self):
-		fromaddr = b'no-reply+kaley.white%40nextthought.com.WBf3Ow@nextthought.com'
-		pids = principal_ids_from_verp(fromaddr, default_key='alpha.nextthought.com')
-		assert_that(pids, contains('kaley.white@nextthought.com'))
+        def test_pids_from_verp_email(self):
+                fromaddr = 'no-reply+kaley.white%40nextthought.com.WBf3Ow@nextthought.com'
+                pids = principal_ids_from_verp(fromaddr, default_key='alpha.nextthought.com')
+                assert_that(pids, contains('kaley.white@nextthought.com'))
 
-		# With label
-		fromaddr = b'no-reply+label+label2+kaley.white%40nextthought.com.WBf3Ow@nextthought.com'
-		pids = principal_ids_from_verp(fromaddr, default_key='alpha.nextthought.com')
-		assert_that(pids, contains('kaley.white@nextthought.com'))
+                # With label
+                fromaddr = 'no-reply+label+label2+kaley.white%40nextthought.com.WBf3Ow@nextthought.com'
+                pids = principal_ids_from_verp(fromaddr, default_key='alpha.nextthought.com')
+                assert_that(pids, contains('kaley.white@nextthought.com'))
 
-		# With '+' in principal
-		fromaddr = b'no-reply+label+foo%2B%2B%2B.khcBPA@nextthought.com'
-		pids = principal_ids_from_verp(fromaddr, default_key='alpha.nextthought.com')
-		assert_that(pids, contains('foo+++'))
+                # With '+' in principal
+                fromaddr = 'no-reply+label+foo%2B%2B%2B.khcBPA@nextthought.com'
+                pids = principal_ids_from_verp(fromaddr, default_key='alpha.nextthought.com')
+                assert_that(pids, contains('foo+++'))
 
-		pids = principal_ids_from_verp(fromaddr)
-		assert_that(pids, is_(()))
+                pids = principal_ids_from_verp(fromaddr)
+                assert_that(pids, is_(()))
 
-	@fudge.patch('nti.mailer._verp._get_default_sender',
-				 'nti.mailer._verp._get_signer_secret')
-	def test_verp_from_recipients_in_site_uses_default_sender_realname(self, mock_find, mock_secret):
-		mock_find.is_callable().returns('Janux <janux@ou.edu>')
-		mock_secret.is_callable().returns('abc123')
+        @fudge.patch('nti.mailer._verp._get_default_sender',
+                                 'nti.mailer._verp._get_signer_secret')
+        def test_verp_from_recipients_in_site_uses_default_sender_realname(self, mock_find, mock_secret):
+                mock_find.is_callable().returns('Janux <janux@ou.edu>')
+                mock_secret.is_callable().returns('abc123')
 
-		prin = EmailAddressablePrincipal.__new__(EmailAddressablePrincipal)
-		prin.email = 'foo@bar.com'
-		prin.id = 'foo'
+                prin = EmailAddressablePrincipal.__new__(EmailAddressablePrincipal)
+                prin.email = 'foo@bar.com'
+                prin.id = 'foo'
 
-		addr = verp_from_recipients('no-reply@nextthought.com',
-									(prin,),
-									default_key='alpha.nextthought.com')
+                addr = verp_from_recipients('no-reply@nextthought.com',
+                                                                        (prin,),
+                                                                        default_key='alpha.nextthought.com')
 
-		assert_that(addr, is_('"Janux" <no-reply+foo.pRjtUA@nextthought.com>'))
+                name, email = parseaddr(addr)
 
-		pids = principal_ids_from_verp(addr, default_key='alpha.nextthought.com')
-		assert_that(pids, contains(prin.id))
+                assert_that(name, is_('Janux'))
+                assert_that(email, is_('no-reply+foo.pRjtUA@nextthought.com'))
 
-		# Test with label already; principal with '+' chars.
-		prin.id = 'foo+++'
-		addr = verp_from_recipients('no-reply+label+label2@nextthought.com',
-									(prin,),
-									default_key='alpha.nextthought.com')
+                pids = principal_ids_from_verp(addr, default_key='alpha.nextthought.com')
+                assert_that(pids, contains(prin.id))
 
-		assert_that(addr, is_('"Janux" <no-reply+label+label2+foo%2B%2B%2B.FxikUQ@nextthought.com>'))
+                # Test with label already; principal with '+' chars.
+                prin.id = 'foo+++'
+                addr = verp_from_recipients('no-reply+label+label2@nextthought.com',
+                                                                        (prin,),
+                                                                        default_key='alpha.nextthought.com')
 
-		pids = principal_ids_from_verp(addr, default_key='alpha.nextthought.com')
-		assert_that(pids, contains(prin.id))
+                name, email = parseaddr(addr)
 
-		# If more than one prin, no verp
-		prin2 = EmailAddressablePrincipal.__new__(EmailAddressablePrincipal)
-		prin2.email = 'foo2@bar.com'
-		prin2.id = 'foo2'
+                assert_that(name, is_('Janux'))
+                assert_that(email, is_('no-reply+label+label2+foo%2B%2B%2B.FxikUQ@nextthought.com'))
 
-		prin.id = 'foo+++'
-		addr = verp_from_recipients('no-reply+label+label2@nextthought.com',
-									(prin, prin2),
-									default_key='alpha.nextthought.com')
+                pids = principal_ids_from_verp(addr, default_key='alpha.nextthought.com')
+                assert_that(pids, contains(prin.id))
 
-		assert_that(addr, is_('"Janux" <no-reply+label+label2@nextthought.com>'))
+                # If more than one prin, no verp
+                prin2 = EmailAddressablePrincipal.__new__(EmailAddressablePrincipal)
+                prin2.email = 'foo2@bar.com'
+                prin2.id = 'foo2'
+
+                prin.id = 'foo+++'
+                addr = verp_from_recipients('no-reply+label+label2@nextthought.com',
+                                                                        (prin, prin2),
+                                                                        default_key='alpha.nextthought.com')
+
+                name, email = parseaddr(addr)
+
+                assert_that(name, is_('Janux'))
+                assert_that(email, is_('no-reply+label+label2@nextthought.com'))
+
