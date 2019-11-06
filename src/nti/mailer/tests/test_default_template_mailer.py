@@ -144,7 +144,7 @@ class TestEmail(unittest.TestCase):
                 request.context = user
 
                 token_url = 'url_to_verify_email'
-                msg = create_simple_html_text_email('test_new_user_created',
+                msg = create_simple_html_text_email('tests/templates/test_new_user_created',
                                                     subject='Hi there',
                                                     recipients=['jason.madden@nextthought.com'],
                                                     bcc='foo@bar.com',
@@ -188,7 +188,7 @@ class TestEmail(unittest.TestCase):
                 request.context = user
 
                 token_url = 'url_to_verify_email'
-                msg = create_simple_html_text_email('test_new_user_created',
+                msg = create_simple_html_text_email('tests/templates/test_new_user_created',
                                                     subject='Hi there',
                                                     recipients=[TestEmailAddressablePrincipal(user, is_valid=True)],
                                                     template_args={'user': user,
@@ -220,7 +220,7 @@ class TestEmail(unittest.TestCase):
 
                 # Test invalid
                 invalid_user = TestEmailAddressablePrincipal(user, is_valid=False)
-                msg = create_simple_html_text_email('test_new_user_created',
+                msg = create_simple_html_text_email('tests/templates/test_new_user_created',
                                                     subject='Hi there',
                                                     recipients=[invalid_user],
                                                     template_args={'user': user,
