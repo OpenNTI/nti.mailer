@@ -13,20 +13,7 @@ try:
     from rfc822 import dump_address_pair as formataddr
 except ImportError:
     from email.utils import parseaddr #Python3
-    from email.utils import formataddr  #Python3
-
-    # def parseaddr(addr, encoding='utf-8'):
-    #     try:
-    #         addr = addr.decode(encoding)
-    #     except AttributeError:
-    #         pass
-    #     name, address = py3_parseaddr(addr)
-    #     return name.encode(encoding), address.encode(encoding)
-
-    # def formataddr(parts, encoding='utf-8'):
-    #     parts = (parts[0].decode(encoding), parts[1].decode(encoding))
-    #     return py3_formataddr(parts).encode(encoding)
-        
+    from email.utils import formataddr  #Python3      
 
 from itsdangerous.exc import BadSignature
 
