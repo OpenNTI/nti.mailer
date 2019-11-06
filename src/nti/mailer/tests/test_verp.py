@@ -16,9 +16,9 @@ import fudge
 import unittest
 
 try:
-    from rfc822 import parseaddr
+    from email.utils import parseaddr #PY3
 except ImportError:
-    from email.utils import parseaddr #Python3
+    from rfc822 import parseaddr #PY2   
 
 from nti.mailer._verp import verp_from_recipients
 from nti.mailer._verp import principal_ids_from_verp

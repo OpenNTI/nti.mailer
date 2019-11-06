@@ -9,11 +9,11 @@ Implementation of the :class:`nti.mailer.interfaces.IVERP` protocol.
 from __future__ import print_function, absolute_import, division
 
 try:
-    from rfc822 import parseaddr
-    from rfc822 import dump_address_pair as formataddr
+    from email.utils import parseaddr #PY3
+    from email.utils import formataddr  #PY3 
 except ImportError:
-    from email.utils import parseaddr #Python3
-    from email.utils import formataddr  #Python3      
+    from rfc822 import parseaddr #PY2
+    from rfc822 import dump_address_pair as formataddr #PY2      
 
 from itsdangerous.exc import BadSignature
 
@@ -69,7 +69,7 @@ class _InsecureAdlerCRC32Digest(object):
 
     def digest(self):
         crc = zlib.adler32(self.val)
-        return struct.pack('i' if crc<0 else 'I', crc)
+        return struct.pack('i' if crc < 0 else 'I', crc)
 
 
 def _make_signer(default_key='$Id$',
