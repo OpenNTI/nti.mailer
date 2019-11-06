@@ -69,7 +69,13 @@ class _InsecureAdlerCRC32Digest(object):
 
     def digest(self):
         crc = zlib.adler32(self.val)
-        return struct.pack('i' if crc < 0 else 'I', crc)
+
+        # PY2 and PY3 have different return values for zlib.adler32. That function
+        # returns a signed and unsigned integer respectively.
+        #
+        # https://docs.python.org/2.7/library/zlib.html#zlib.adler32
+        # https://github.com/NextThought/nti.mailer/issues/4#issuecomment-550293781
+        return struct.pack('!I', crc & 0xFFFFFFFF)
 
 
 def _make_signer(default_key='$Id$',

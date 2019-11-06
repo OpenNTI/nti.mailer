@@ -29,17 +29,17 @@ from nti.mailer.interfaces import EmailAddressablePrincipal
 class TestVerp(unittest.TestCase):
 
         def test_pids_from_verp_email(self):
-                fromaddr = 'no-reply+kaley.white%40nextthought.com.WBf3Ow@nextthought.com'
+                fromaddr = 'no-reply+kaley.white%40nextthought.com.PFgX7A@nextthought.com'
                 pids = principal_ids_from_verp(fromaddr, default_key='alpha.nextthought.com')
                 assert_that(pids, contains('kaley.white@nextthought.com'))
 
                 # With label
-                fromaddr = 'no-reply+label+label2+kaley.white%40nextthought.com.WBf3Ow@nextthought.com'
+                fromaddr = 'no-reply+label+label2+kaley.white%40nextthought.com.PFgX7A@nextthought.com'
                 pids = principal_ids_from_verp(fromaddr, default_key='alpha.nextthought.com')
                 assert_that(pids, contains('kaley.white@nextthought.com'))
 
                 # With '+' in principal
-                fromaddr = 'no-reply+label+foo%2B%2B%2B.khcBPA@nextthought.com'
+                fromaddr = 'no-reply+label+foo%2B%2B%2B.PXAYJg@nextthought.com'
                 pids = principal_ids_from_verp(fromaddr, default_key='alpha.nextthought.com')
                 assert_that(pids, contains('foo+++'))
 
@@ -63,7 +63,7 @@ class TestVerp(unittest.TestCase):
                 name, email = parseaddr(addr)
 
                 assert_that(name, is_('Janux'))
-                assert_that(email, is_('no-reply+foo.pRjtUA@nextthought.com'))
+                assert_that(email, is_('no-reply+foo.UGQXuA@nextthought.com'))
 
                 pids = principal_ids_from_verp(addr, default_key='alpha.nextthought.com')
                 assert_that(pids, contains(prin.id))
@@ -77,7 +77,7 @@ class TestVerp(unittest.TestCase):
                 name, email = parseaddr(addr)
 
                 assert_that(name, is_('Janux'))
-                assert_that(email, is_('no-reply+label+label2+foo%2B%2B%2B.FxikUQ@nextthought.com'))
+                assert_that(email, is_('no-reply+label+label2+foo%2B%2B%2B.ULoYGw@nextthought.com'))
 
                 pids = principal_ids_from_verp(addr, default_key='alpha.nextthought.com')
                 assert_that(pids, contains(prin.id))
