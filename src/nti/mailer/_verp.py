@@ -42,6 +42,13 @@ def _get_signer_secret(default_secret="$Id$"):
 import zlib
 import struct
 
+def _to_bytes(s, encoding='ascii'):
+    # The default encoding of ascii is fine for our localized purpose of email, right?
+    return s if isinstance(s, bytes) else s.encode(encoding)
+
+def _to_native_string(s, encoding='ascii'):
+    return s if isinstance(s, str) else s.decode(encoding)
+
 
 class _InsecureAdlerCRC32Digest(object):
     """
@@ -139,9 +146,9 @@ def _sign(signer, principal_ids):
     sig = signer.get_signature(principal_ids)
     # The sig is always already base64 encoded, in the
     # URL/RFC822 safe fashion.
-    principal_ids = urllib_parse.quote(principal_ids).encode('utf-8')
+    principal_ids = urllib_parse.quote(principal_ids)
 
-    return principal_ids + signer.sep + sig
+    return _to_bytes(principal_ids) + signer.sep + sig
 
 
 def realname_from_recipients(fromaddr, recipients, request=None):
@@ -178,10 +185,10 @@ def verp_from_recipients(fromaddr,
         # Do that after signing to be sure we wind up with
         # something rfc822-safe
         # First, get bytes to avoid any default-encoding
-        principal_id = tuple(principal_ids)[0].encode('utf-8')
+        principal_id = _to_bytes(tuple(principal_ids)[0])
         # now sign
         signer = __make_signer(default_key)
-        principal_id = _sign(signer, principal_id).decode('utf-8')
+        principal_id = _to_native_string(_sign(signer, principal_id))
 
         local, domain = addr.split('@')
         # Note: we may have a local address that already has a label '+'.
@@ -207,7 +214,7 @@ def principal_ids_from_verp(fromaddr,
     # Split on our last '+' to allow user defined labels.
     signed_and_encoded = addr.rsplit('+', 1)[1].split('@')[0]
 
-    signature_seperator = signer.sep.decode('utf-8')
+    signature_seperator = _to_native_string(signer.sep)
     if signature_seperator not in signed_and_encoded:
         return ()
 
@@ -217,7 +224,7 @@ def principal_ids_from_verp(fromaddr,
     signed = decoded_pids + signature_seperator + sig
     try:
         pids = signer.unsign(signed)
-        pids = pids.decode('utf-8')
+        pids = _to_native_string(pids)
     except BadSignature:
         return ()
     else:
