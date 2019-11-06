@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from __future__ import print_function, unicode_literals, absolute_import, division
+from __future__ import print_function, absolute_import, division
 __docformat__ = "restructuredtext en"
 
 # disable: accessing protected members, too many methods
@@ -43,21 +43,21 @@ MSG_STRING = 'MIME-Version: 1.0\nFrom: NextThought <no-reply+70108544275840.qhjW
 
 class TestMailer(unittest.TestCase):
 
-	def setUp(self):
-		super(TestMailer, self).setUp()
-		self.message = email.message_from_string(MSG_STRING)
+        def setUp(self):
+                super(TestMailer, self).setUp()
+                self.message = email.message_from_string(MSG_STRING)
 
-	@fudge.test
-	def test_ses_raises(self):
-		mailer = SESMailer()
-		fake_sesconn = fudge.Fake()
-		exc = SESAddressBlacklistedError('404', 'reason')
-		fake_sesconn.expects('send_raw_email').raises(exc)
+        @fudge.test
+        def test_ses_raises(self):
+                mailer = SESMailer()
+                fake_sesconn = fudge.Fake()
+                exc = SESAddressBlacklistedError('404', 'reason')
+                fake_sesconn.expects('send_raw_email').raises(exc)
 
-		mailer.sesconn = fake_sesconn
+                mailer.sesconn = fake_sesconn
 
-		assert_that(calling(mailer.send).with_args('from', ('to',), self.message),
-					raises(SMTPResponseException))
+                assert_that(calling(mailer.send).with_args('from', ('to',), self.message),
+                                        raises(SMTPResponseException))
 
         def test_ses_close(self):
                 mailer = SESMailer()

@@ -6,9 +6,14 @@ Implementation of the :class:`nti.mailer.interfaces.IVERP` protocol.
 .. $Id$
 """
 
-from __future__ import print_function, unicode_literals, absolute_import, division
+from __future__ import print_function, absolute_import, division
 
-import rfc822
+try:
+    from email.utils import parseaddr #PY3
+    from email.utils import formataddr  #PY3 
+except ImportError:
+    from rfc822 import parseaddr #PY2
+    from rfc822 import dump_address_pair as formataddr #PY2      
 
 from itsdangerous.exc import BadSignature
 
@@ -37,6 +42,13 @@ def _get_signer_secret(default_secret="$Id$"):
 import zlib
 import struct
 
+def _to_bytes(s, encoding='ascii'):
+    # The default encoding of ascii is fine for our localized purpose of email, right?
+    return s if isinstance(s, bytes) else s.encode(encoding)
+
+def _to_native_string(s, encoding='ascii'):
+    return s if isinstance(s, str) else s.decode(encoding)
+
 
 class _InsecureAdlerCRC32Digest(object):
     """
@@ -64,7 +76,13 @@ class _InsecureAdlerCRC32Digest(object):
 
     def digest(self):
         crc = zlib.adler32(self.val)
-        return struct.pack('i', crc)
+
+        # PY2 and PY3 have different return values for zlib.adler32. That function
+        # returns a signed and unsigned integer respectively.
+        #
+        # https://docs.python.org/2.7/library/zlib.html#zlib.adler32
+        # https://github.com/NextThought/nti.mailer/issues/4#issuecomment-550293781
+        return struct.pack('!I', crc & 0xFFFFFFFF)
 
 
 def _make_signer(default_key='$Id$',
@@ -98,7 +116,7 @@ def _find_default_realname(request=None):
     realname = None
     default_sender = _get_default_sender()
     if default_sender:
-        realname, _ = rfc822.parseaddr(default_sender)
+        realname, _ = parseaddr(default_sender)
         if realname is not None:
             realname = realname.strip()
     return realname or "NextThought"
@@ -130,16 +148,16 @@ def _sign(signer, principal_ids):
     # URL/RFC822 safe fashion.
     principal_ids = urllib_parse.quote(principal_ids)
 
-    return principal_ids + signer.sep + sig
+    return _to_bytes(principal_ids) + signer.sep + sig
 
 
 def realname_from_recipients(fromaddr, recipients, request=None):
-    realname, addr = rfc822.parseaddr(fromaddr)
+    realname, addr = parseaddr(fromaddr)
     if not realname and not addr:
         raise ValueError("Invalid fromaddr", fromaddr)
     if not realname:
         realname = _find_default_realname(request=request)
-    return rfc822.dump_address_pair((realname, addr))
+    return formataddr((realname, addr))
 
 
 def verp_from_recipients(fromaddr,
@@ -148,7 +166,7 @@ def verp_from_recipients(fromaddr,
                          default_key=None):
 
     realname = realname_from_recipients(fromaddr, recipients, request=request)
-    realname, addr = rfc822.parseaddr(realname)
+    realname, addr = parseaddr(realname)
 
     # We could special case the common case of recipients of length
     # one if it is a string: that typically means we're sending to the current
@@ -167,10 +185,10 @@ def verp_from_recipients(fromaddr,
         # Do that after signing to be sure we wind up with
         # something rfc822-safe
         # First, get bytes to avoid any default-encoding
-        principal_id = tuple(principal_ids)[0].encode('utf-8')
+        principal_id = _to_bytes(tuple(principal_ids)[0])
         # now sign
         signer = __make_signer(default_key)
-        principal_id = _sign(signer, principal_id)
+        principal_id = _to_native_string(_sign(signer, principal_id))
 
         local, domain = addr.split('@')
         # Note: we may have a local address that already has a label '+'.
@@ -178,7 +196,7 @@ def verp_from_recipients(fromaddr,
         # ensures we want the last '+' on parsing.
         addr = local + '+' + principal_id + '@' + domain
 
-    return rfc822.dump_address_pair((realname, addr))
+    return formataddr((realname, addr))
 
 
 def principal_ids_from_verp(fromaddr,
@@ -187,24 +205,26 @@ def principal_ids_from_verp(fromaddr,
     if not fromaddr or '+' not in fromaddr:
         return ()
 
-    _, addr = rfc822.parseaddr(fromaddr)
+    _, addr = parseaddr(fromaddr)
     if '+' not in addr:
         return ()
 
     signer = __make_signer(default_key)
 
     # Split on our last '+' to allow user defined labels.
-    signed_and_encoded = addr.rsplit(b'+', 1)[1].split(b'@')[0]
+    signed_and_encoded = addr.rsplit('+', 1)[1].split('@')[0]
 
-    if signer.sep not in signed_and_encoded:
+    signature_seperator = _to_native_string(signer.sep)
+    if signature_seperator not in signed_and_encoded:
         return ()
 
-    encoded_pids, sig = signed_and_encoded.rsplit(signer.sep, 1)
+    encoded_pids, sig = signed_and_encoded.rsplit(signature_seperator, 1)
     decoded_pids = urllib_parse.unquote(encoded_pids)
 
-    signed = decoded_pids + signer.sep + sig
+    signed = decoded_pids + signature_seperator + sig
     try:
         pids = signer.unsign(signed)
+        pids = _to_native_string(pids)
     except BadSignature:
         return ()
     else:
