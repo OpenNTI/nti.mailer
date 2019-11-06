@@ -82,7 +82,7 @@ class _InsecureAdlerCRC32Digest(object):
 
     def digest(self):
         crc = zlib.adler32(self.val)
-        return struct.pack('i', crc)
+        return struct.pack('i' if crc<0 else 'I', crc)
 
 
 def _make_signer(default_key='$Id$',
@@ -146,7 +146,7 @@ def _sign(signer, principal_ids):
     sig = signer.get_signature(principal_ids)
     # The sig is always already base64 encoded, in the
     # URL/RFC822 safe fashion.
-    principal_ids = urllib_parse.quote(principal_ids)
+    principal_ids = urllib_parse.quote(principal_ids).encode('utf-8')
 
     return principal_ids + signer.sep + sig
 
@@ -188,7 +188,7 @@ def verp_from_recipients(fromaddr,
         principal_id = tuple(principal_ids)[0].encode('utf-8')
         # now sign
         signer = __make_signer(default_key)
-        principal_id = _sign(signer, principal_id)
+        principal_id = _sign(signer, principal_id).decode('utf-8')
 
         local, domain = addr.split('@')
         # Note: we may have a local address that already has a label '+'.
@@ -212,17 +212,19 @@ def principal_ids_from_verp(fromaddr,
     signer = __make_signer(default_key)
 
     # Split on our last '+' to allow user defined labels.
-    signed_and_encoded = addr.rsplit(b'+', 1)[1].split(b'@')[0]
+    signed_and_encoded = addr.rsplit('+', 1)[1].split('@')[0]
 
-    if signer.sep not in signed_and_encoded:
+    signature_seperator = signer.sep.decode('utf-8')
+    if signature_seperator not in signed_and_encoded:
         return ()
 
-    encoded_pids, sig = signed_and_encoded.rsplit(signer.sep, 1)
+    encoded_pids, sig = signed_and_encoded.rsplit(signature_seperator, 1)
     decoded_pids = urllib_parse.unquote(encoded_pids)
 
-    signed = decoded_pids + signer.sep + sig
+    signed = decoded_pids + signature_seperator + sig
     try:
         pids = signer.unsign(signed)
+        pids = pids.decode('utf-8')
     except BadSignature:
         return ()
     else:
