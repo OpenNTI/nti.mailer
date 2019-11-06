@@ -6,6 +6,11 @@ from __future__ import print_function, absolute_import, division
 # disable: accessing protected members, too many methods
 # pylint: disable=W0212,R0904
 
+try:
+    from email.utils import parseaddr #PY3
+except ImportError:
+    from rfc822 import parseaddr #PY2
+
 from hamcrest import is_
 from hamcrest import none
 from hamcrest import not_none
@@ -159,7 +164,9 @@ class TestEmail(unittest.TestCase):
                 assert_that(base_msg_string, contains_string('Hi=20Suz=EB=20Schwartz'))
 
                 # Because we can't get to IPrincial, no VERP info
-                assert_that(msg.sender, is_('"NextThought" <no-reply@nextthought.com>'))
+                name, email = parseaddr(msg.sender)
+                assert_that(name, is_('NextThought'))
+                assert_that(email, is_('no-reply@nextthought.com'))
 
                 #
                 assert_that(msg, has_property('bcc', ['foo@bar.com']))
@@ -207,7 +214,9 @@ class TestEmail(unittest.TestCase):
 
                 # we can get to IPrincipal, so we have VERP
                 # The first part will be predictable, the rest won't
-                assert_that(msg.sender, contains_string('"NextThought" <no-reply+'))
+                name, email = parseaddr(msg.sender)
+                assert_that(name, is_('NextThought'))
+                assert_that(email, contains_string('no-reply+'))
 
                 # Test invalid
                 invalid_user = TestEmailAddressablePrincipal(user, is_valid=False)
