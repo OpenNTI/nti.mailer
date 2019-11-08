@@ -193,7 +193,7 @@ def create_simple_html_text_email(base_template,
             result[the_context_name] = template_args['context']
             del result['context']
         for args_utility in component.getAllUtilitiesRegisteredFor(IMailerTemplateArgsUtility):
-            result.update(args_utility.get_template_args())
+            result.update(args_utility.get_template_args(request))
         return result
 
     def do_render(pkg):
