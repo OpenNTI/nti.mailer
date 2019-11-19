@@ -290,7 +290,7 @@ def run_process():  # pragma NO COVERAGE
     app.run()
 
 def run_console():  # pragma NO COVERAGE
-    logging.basicConfig(steam=sys.stderr, format='%(asctime)s %(levelname)s %(message)s', level=logging.WARN)
+    logging.basicConfig(stream=sys.stderr, format='%(asctime)s %(levelname)s %(message)s', level=logging.WARN)
     app = ConsoleApp()
     app.main()
 
