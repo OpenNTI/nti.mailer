@@ -15,10 +15,7 @@ from hamcrest import assert_that
 import fudge
 import unittest
 
-try:
-    from email.utils import parseaddr #PY3
-except ImportError:
-    from rfc822 import parseaddr #PY2   
+from nti.mailer import parseaddr
 
 from nti.mailer._verp import verp_from_recipients
 from nti.mailer._verp import principal_ids_from_verp
