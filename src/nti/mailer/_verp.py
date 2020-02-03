@@ -17,8 +17,8 @@ from zope import interface
 
 from zope.security.interfaces import IPrincipal
 
-from nti.mailer import parseaddr
-from nti.mailer import formataddr
+from nti.mailer._compat import parseaddr
+from nti.mailer._compat import formataddr
 
 from nti.mailer.interfaces import IVERP
 from nti.mailer.interfaces import IMailerPolicy

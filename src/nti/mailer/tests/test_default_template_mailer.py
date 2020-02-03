@@ -6,7 +6,7 @@ from __future__ import print_function, absolute_import, division
 # disable: accessing protected members, too many methods
 # pylint: disable=W0212,R0904
 
-from nti.mailer import parseaddr
+from nti.mailer._compat import parseaddr
 
 from hamcrest import is_
 from hamcrest import none

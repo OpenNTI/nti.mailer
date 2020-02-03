@@ -15,7 +15,7 @@ from hamcrest import assert_that
 import fudge
 import unittest
 
-from nti.mailer import parseaddr
+from nti.mailer._compat import parseaddr
 
 from nti.mailer._verp import verp_from_recipients
 from nti.mailer._verp import principal_ids_from_verp
