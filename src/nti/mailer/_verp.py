@@ -8,13 +8,6 @@ Implementation of the :class:`nti.mailer.interfaces.IVERP` protocol.
 
 from __future__ import print_function, absolute_import, division
 
-try:
-    from email.utils import parseaddr #PY3
-    from email.utils import formataddr  #PY3 
-except ImportError:
-    from rfc822 import parseaddr #PY2
-    from rfc822 import dump_address_pair as formataddr #PY2      
-
 from itsdangerous.exc import BadSignature
 
 from itsdangerous.signer import Signer
@@ -23,6 +16,9 @@ from zope import component
 from zope import interface
 
 from zope.security.interfaces import IPrincipal
+
+from nti.mailer._compat import parseaddr
+from nti.mailer._compat import formataddr
 
 from nti.mailer.interfaces import IVERP
 from nti.mailer.interfaces import IMailerPolicy
@@ -196,7 +192,8 @@ def verp_from_recipients(fromaddr,
         # ensures we want the last '+' on parsing.
         addr = local + '+' + principal_id + '@' + domain
 
-    return formataddr((realname, addr))
+    result = formataddr((realname, addr))
+    return result
 
 
 def principal_ids_from_verp(fromaddr,
