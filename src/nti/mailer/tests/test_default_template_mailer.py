@@ -5,7 +5,7 @@ from __future__ import print_function, absolute_import, division
 
 # disable: accessing protected members, too many methods
 # pylint: disable=W0212,R0904
-
+import fudge
 from nti.mailer._compat import parseaddr
 
 from hamcrest import is_
@@ -127,7 +127,10 @@ class TestEmail(unittest.TestCase):
 
         layer = PyramidMailerLayer
 
-        def test_create_mail_message_with_non_ascii_name_and_string_bcc(self):
+        @fudge.patch('nti.mailer._verp._brand_name')
+        def test_create_mail_message_with_non_ascii_name_and_string_bcc(self, brand_name):
+                brand_name.is_callable().returns(None)
+
                 class User(object):
                         username = 'the_user'
 
@@ -168,7 +171,9 @@ class TestEmail(unittest.TestCase):
                 #
                 assert_that(msg, has_property('bcc', ['foo@bar.com']))
 
-        def test_create_email_with_verp(self):
+        @fudge.patch('nti.mailer._verp._brand_name')
+        def test_create_email_with_verp(self, brand_name):
+                brand_name.is_callable().returns(None)
 
                 @interface.implementer(IPrincipal, IEmailAddressable)
                 class User(object):
