@@ -11,9 +11,12 @@ from __future__ import print_function, absolute_import, division
 from itsdangerous.exc import BadSignature
 
 from itsdangerous.signer import Signer
+from pyramid.threadlocal import get_current_request
+from zc.displayname.interfaces import IDisplayNameGenerator
 
 from zope import component
 from zope import interface
+from zope.component.hooks import getSite
 
 from zope.security.interfaces import IPrincipal
 
@@ -103,6 +106,11 @@ def _get_default_sender():
         and policy.get_default_sender()
 
 
+def _brand_name(request):
+    return component.getMultiAdapter((getSite(), request),
+                                     IDisplayNameGenerator)()
+
+
 def _find_default_realname(request=None):
     """
     Called when the given fromaddr does not have a realname portion.
@@ -115,6 +123,13 @@ def _find_default_realname(request=None):
         realname, _ = parseaddr(default_sender)
         if realname is not None:
             realname = realname.strip()
+
+    if not realname:
+        if request is None:
+            request = get_current_request()
+
+        realname = _brand_name(request)
+
     return realname or "NextThought"
 
 
