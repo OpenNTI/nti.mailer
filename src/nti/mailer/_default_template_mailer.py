@@ -58,16 +58,6 @@ def _get_renderer_spec_and_package(base_template,
     if ':' not in base_template and '/' not in base_template:
         base_template = 'templates/' + base_template
 
-    # pyramid_mako < 1.0 does not properly accept a package argument
-    # and a relative template path; such a specification is
-    # considered to be relative to mako's search directory,
-    # which is not what we want. We could fix this with a special
-    # TemplateLookup object, but instead it's a quick
-    # hack to alter the names here.
-    # This should be fixed with 1.0a2, we could probably drop
-    if extension == '.mak' and ':' not in base_template:
-        base_template = package.__name__ + ':' + base_template
-
     return base_template + extension, package
 
 
