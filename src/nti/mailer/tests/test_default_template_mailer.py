@@ -154,6 +154,7 @@ class TestEmail(unittest.TestCase):
                                                                    'href': token_url,
                                                                    'support_email': 'support_email' },
                                                     package='nti.mailer',
+                                                    text_template_extension=".mak",
                                                     request=request)
                 assert_that(msg, is_(not_none()))
 
@@ -234,4 +235,31 @@ class TestEmail(unittest.TestCase):
                                                     request=request)
                 assert_that(msg, none())
 
+        @fudge.patch('nti.mailer._verp._brand_name')
+        def test_create_email_with_mako(self, brand_name):
+            brand_name.is_callable().returns(None)
 
+            class User(object):
+                username = 'the_user'
+
+            class Profile(object):
+                realname = u'Mickey Mouse'
+
+            user = User()
+            profile = Profile()
+            request = Request()
+            request.context = user
+
+            token_url = 'url_to_verify_email'
+            msg = create_simple_html_text_email('tests/templates/test_new_user_created',
+                                                subject='Hi there',
+                                                recipients=['jason.madden@nextthought.com'],
+                                                template_args={'user': user,
+                                                               'profile': profile,
+                                                               'context': user,
+                                                               'href': token_url,
+                                                               'support_email': 'support_email' },
+                                                package='nti.mailer',
+                                                text_template_extension=".mak",
+                                                request=request)
+            assert_that(msg, is_(not_none()))
