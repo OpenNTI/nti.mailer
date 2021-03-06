@@ -70,6 +70,7 @@ setup(
         'pyramid_mailer',
         'six',
         'ZODB',
+        'zc.displayname',
         'zope.annotation',
         'zope.catalog',
         'zope.component',
