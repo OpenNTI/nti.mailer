@@ -134,6 +134,8 @@ class TestVerp(unittest.TestCase):
                 # be called
                 get_current_request.is_callable().returns(request).times_called(0)
 
+                # If we have a IDisplayNameGenerator registered for the current site
+                # we'll use that for the real name
                 displayname_adapter = _make_displayname_adapter("Brand XYZ")
                 with provide_adapter(displayname_adapter,
                                      required=(object, object),
@@ -161,6 +163,18 @@ class TestVerp(unittest.TestCase):
 
                     assert_that(name, is_('Brand XYZ'))
                     assert_that(email, is_('no-reply+foo.UGQXuA@nextthought.com'))
+
+                # But if we don't have an IDisplayNameGenerator, we default to NextThought
+                prin = self.email_addr_principal('foo', 'foo@bar.com')
+                addr = verp_from_recipients('no-reply@nextthought.com',
+                                            (prin,),
+                                            default_key='alpha.nextthought.com',
+                                            request=request)
+
+                name, email = parseaddr(addr)
+
+                assert_that(name, is_('NextThought'))
+                assert_that(email, is_('no-reply+foo.UGQXuA@nextthought.com'))
 
 
 @contextlib.contextmanager
