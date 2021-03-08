@@ -107,8 +107,9 @@ def _get_default_sender():
 
 
 def _brand_name(request):
-    return component.getMultiAdapter((getSite(), request),
-                                     IDisplayNameGenerator)()
+    dng = component.queryMultiAdapter((getSite(), request),
+                                      IDisplayNameGenerator)
+    return dng() if dng != None else None
 
 
 def _find_default_realname(request=None):
