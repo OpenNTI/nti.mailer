@@ -239,16 +239,42 @@ class TestEmail(unittest.TestCase):
         def test_create_email_with_mako(self, brand_name):
             brand_name.is_callable().returns(None)
 
-            class User(object):
-                username = 'the_user'
-
-            class Profile(object):
-                realname = u'Mickey Mouse'
-
-            user = User()
-            profile = Profile()
+            user = _User('the_user')
             request = Request()
             request.context = user
+
+            msg = self._create_simple_email(request,
+                                            text_template_extension=".mak")
+            assert_that(msg, is_(not_none()))
+
+        @fudge.patch('nti.mailer._verp._brand_name')
+        def test_create_email_no_request_context(self, brand_name):
+            brand_name.is_callable().returns(None)
+
+            @interface.implementer(IBrowserRequest)
+            class Request(object):
+                response = None
+                application_url = 'foo'
+
+                def __init__(self):
+                    self.annotations = {}
+
+                def get(self, key, default=None):
+                    return default
+
+            request = Request()
+            msg = self._create_simple_email(request,
+                                            text_template_extension=".mak")
+            assert_that(msg, is_(not_none()))
+
+        def _create_simple_email(self,
+                                 request,
+                                 user=None,
+                                 profile=None,
+                                 text_template_extension=".txt"):
+
+            user = user or _User('the_user')
+            profile = profile or _Profile(u'Mickey Mouse')
 
             token_url = 'url_to_verify_email'
             msg = create_simple_html_text_email('tests/templates/test_new_user_created',
@@ -258,8 +284,18 @@ class TestEmail(unittest.TestCase):
                                                                'profile': profile,
                                                                'context': user,
                                                                'href': token_url,
-                                                               'support_email': 'support_email' },
+                                                               'support_email': 'support_email'},
                                                 package='nti.mailer',
-                                                text_template_extension=".mak",
+                                                text_template_extension=text_template_extension,
                                                 request=request)
-            assert_that(msg, is_(not_none()))
+            return msg
+
+
+class _User(object):
+    def __init__(self, username):
+        self.username = username
+
+
+class _Profile(object):
+    def __init__(self, realname):
+        self.realname = realname
