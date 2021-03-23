@@ -175,7 +175,7 @@ def create_simple_html_text_email(base_template,
         the_context_name = 'nti_context' if extension == text_template_extension and text_template_extension != '.txt' else 'context'
         result = {}
         if request:
-            result[the_context_name] = request.context
+            result[the_context_name] = getattr(request, 'context', None)
         if template_args:
             result.update(template_args)
 
