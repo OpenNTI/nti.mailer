@@ -20,12 +20,11 @@ import time
 
 from zope import interface
 
-import smtplib
-
 from email.message import Message
 
-import boto.ses
-from boto.ses.exceptions import SESAddressBlacklistedError
+import boto3
+
+from botocore.config import Config
 
 from repoze.sendmail.encoding import encode_message
 
@@ -49,19 +48,18 @@ class SESMailer(object):
     def __init__(self, region='us-east-1'):
         self.region=region
 
+    @property
+    def _ses_config(self):
+        return Config(region_name=self.region)
+
     @Lazy
-    def sesconn(self):
-        conn = boto.ses.connect_to_region(self.region)
-        assert conn
-        return conn
+    def client(self):
+        client = boto3.client('ses', config=self._ses_config)
+        assert client
+        return client
 
     def close(self):
-        # Close it if we have it, but don't connect trying to close
-        try:
-            _sesconn = self.__dict__.pop('sesconn')
-            _sesconn.close()
-        except KeyError:
-            pass
+        pass
 
     def send(self, fromaddr, toaddrs, message):
         if not isinstance(message, Message):  # pragma: no cover
@@ -90,12 +88,9 @@ class SESMailer(object):
         # QQQ: The docs for SendRawEmail say that destinations is not required,
         # so how does that interact with what's in the message body?
         # Boto will accept either a string, a list of strings, or None
-        try:
-            self.sesconn.send_raw_email(message, fromaddr, toaddrs)
-        except SESAddressBlacklistedError:
-            # A permanent error, cause the processor
-            # to ditch the message
-            raise smtplib.SMTPResponseException(553, 'Blacklisted address')
+        self.client.send_raw_email(RawMessage={'Data': message},
+                                   Source=fromaddr,
+                                   Destinations=toaddrs)
 
 
 import argparse
@@ -111,7 +106,7 @@ class ConsoleApp(_ConsoleApp):
         self.script_name = argv[0]
         self._process_args(argv[1:])
         self.mailer = SESMailer()
-        getattr(self.mailer, 'sesconn')
+        getattr(self.mailer, 'client')
 
 
 class MailerProcess(object):
