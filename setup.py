@@ -60,7 +60,7 @@ setup(
     install_requires=[
         'gevent',
         'setuptools',
-        'boto',
+        'boto3',
         'BTrees',
         'itsdangerous',
         'nti.schema',
