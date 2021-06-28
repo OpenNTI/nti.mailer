@@ -120,7 +120,8 @@ class ITemplatedMailer(interface.Interface):
                                      template_args=None,
                                      attachments=(),
                                      package=None,
-                                     text_template_extension='.txt'):
+                                     text_template_extension='.txt',
+                                     message_factory=None):
         """
         Transactionally queues an email for sending. The email has both a
         plain text and an HTML version.
@@ -146,6 +147,12 @@ class ITemplatedMailer(interface.Interface):
                 asset spec, then the template will be interpreted relative to this
                 package (and its templates/ subdirectory if no subdirectory is specified).
                 If no package is given, the package of the caller of this function is used.
+        :keyword message_factory: A callable, called with the same arguments
+                passed to this function (minus this param) to create a
+                :class:`pyramid_mailer.message.Message` by rendering the pair
+                of templates to create a text and html part. Defaults to
+                :meth:`create_simple_html_text_email`.
+
 
         :return: The :class:`pyramid_mailer.message.Message` we sent, if we sent one,
                 otherwise None.
