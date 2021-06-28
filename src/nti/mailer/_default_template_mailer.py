@@ -267,13 +267,19 @@ def queue_simple_html_text_email(*args, **kwargs):
             Mako templates. Note that if you use Mako, the usual ``context`` argument is renamed to ``nti_context``,
             as ``context`` is a reserved word in Mako.
 
+    :keyword message_factory: A callable, called with the same arguments
+            passed to this function to create a
+            :class:`pyramid_mailer.message.Message` by rendering the pair
+            of templates to create a text and html part.
+
     :return: The :class:`pyramid_mailer.message.Message` we sent.
     """
 
     kwargs = dict(kwargs)
     if '_level' not in kwargs:
         kwargs['_level'] = 4
-    message = create_simple_html_text_email(*args, **kwargs)
+    message_factory = kwargs.pop('message_factory', None) or create_simple_html_text_email
+    message = message_factory(*args, **kwargs)
     # There are cases where this will be none (bounced email handling, missing
     # subject - error?). In at least the bounced email case, we want to avoid
     # sending the email and erroring.
