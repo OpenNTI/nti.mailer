@@ -267,11 +267,6 @@ def queue_simple_html_text_email(*args, **kwargs):
             Mako templates. Note that if you use Mako, the usual ``context`` argument is renamed to ``nti_context``,
             as ``context`` is a reserved word in Mako.
 
-    :keyword message_factory: A callable, called with the same arguments
-            passed to this function to create a
-            :class:`pyramid_mailer.message.Message` by rendering the pair
-            of templates to create a text and html part.
-
     :return: The :class:`pyramid_mailer.message.Message` we sent.
     """
 
