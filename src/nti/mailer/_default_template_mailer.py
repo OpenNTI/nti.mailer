@@ -278,7 +278,7 @@ def queue_simple_html_text_email(*args, **kwargs):
     kwargs = dict(kwargs)
     if '_level' not in kwargs:
         kwargs['_level'] = 4
-    message_factory = kwargs.pop('message_factory', None) or create_simple_html_text_email
+    message_factory = kwargs.pop('message_factory', create_simple_html_text_email)
     message = message_factory(*args, **kwargs)
     # There are cases where this will be none (bounced email handling, missing
     # subject - error?). In at least the bounced email case, we want to avoid
