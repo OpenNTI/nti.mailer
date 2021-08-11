@@ -1,5 +1,10 @@
 [run]
 source = nti.mailer
+# Note that greenlet concurrency is only needed for
+# correctly measuring MailerWatcher (and even then right now
+# only in one test). However, greenlet concurrency isn't supported
+# on PyPy. We choose to disable coverage testing on GHA+PyPy for now,
+# because we have no PyPy specific code paths.
 concurrency = greenlet
 # New in 5.0; required for the GHA coveralls submission.
 relative_files = True
