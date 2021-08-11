@@ -168,8 +168,16 @@ class TestMailerWatcher(TestLoopingMailerProcess):
 
     def test_deliver_messages_come_while_waiting(self):
         import gevent
+        import time
         # Next time we yield to the hub, this will get called.
-        gevent.spawn(self._queue_two_messages)
+        def q():
+            self._queue_two_messages()
+            # Sleep (blocking) in case our stat watcher has
+            # very poor mtime resolution; we don't want a false
+            # negative in our detection.
+            time.sleep(0.5)
+
+        gevent.spawn(q)
 
         # Some systems are very slow to detect changes. Notably,
         # libev on Darwin (macOS 10.15.7 on APFS) can take several

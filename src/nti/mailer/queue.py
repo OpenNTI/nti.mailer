@@ -189,6 +189,10 @@ def _stat_watcher_modified(watcher):
     Inspects the stat watcher to see if the modified time
     has changed between the current attrs and the prev attrs
     """
+    # XXX: This can fail (false negative) if modifications are coming
+    # in faster than the resolution of the mtime, which depends on the
+    # gevent loop in use, as well as the filesystem and possibly
+    # the configuration.
     return _stat_modified_time(watcher.prev) != _stat_modified_time(watcher.attr)
 
 
