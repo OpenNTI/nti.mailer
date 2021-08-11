@@ -364,9 +364,13 @@ class TestEmail(unittest.TestCase):
             warnings.simplefilter('always')
             self._create_simple_email(Request(), context=self)
 
-
-        self.assertEqual(len(warns), 1)
-        self.assertIn('Mismatch between the explicit', str(warns[0].message))
+        if str is not bytes:
+            # There's a bug in the 'always' simple filter on Python 2:
+            # It doesn't properly clear the stacklevel cache,
+            # so if we've emitted this warning by calling self._create_simple_email
+            # before, we don't catch that warning.
+            self.assertEqual(len(warns), 1)
+            self.assertIn('Mismatch between the explicit', str(warns[0].message))
 
 class _User(object):
     def __init__(self, username):
