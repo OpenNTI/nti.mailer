@@ -23,6 +23,8 @@ Default mailer
 Queue
 -----
 
+See :doc:`programs` for information on how these are intended to be used.
+
 .. automodule:: nti.mailer.queue
 
 VERP

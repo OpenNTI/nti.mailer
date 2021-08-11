@@ -96,6 +96,7 @@ setup(
         'docs': [
             'Sphinx',
             'repoze.sphinx.autointerface',
+            'sphinxcontrib-programoutput',
             'sphinx_rtd_theme',
         ],
     },

@@ -30,16 +30,27 @@ rqmt = pkg_resources.require('nti.mailer')[0]
 # If your documentation needs a minimal Sphinx version, state it here.
 #
 # needs_sphinx = '1.0'
+# 1.8 was the last version that runs on Python 2; 2.0+ requires Python 3.
+# `autodoc_default_options` was new in 1.8
+needs_sphinx = "1.8"
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
-    'sphinx.ext.intersphinx',
     'sphinx.ext.doctest',
+    'sphinx.ext.coverage',
+    'sphinx.ext.intersphinx',
+    'sphinx.ext.extlinks',
     'sphinx.ext.viewcode',
+
+    # Third-party
     'repoze.sphinx.autointerface',
+    'sphinxcontrib.programoutput',
+
+    # Ours
+
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -191,6 +202,7 @@ intersphinx_mapping = {
 
     'https://docs.pylonsproject.org/projects/pyramid_mailer/en/latest/': None,
     'https://repozesendmail.readthedocs.io/en/latest/': None,
+    'https://boto3.amazonaws.com/v1/documentation/api/latest/': None,
 }
 
 
