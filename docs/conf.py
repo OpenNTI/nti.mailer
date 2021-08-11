@@ -37,6 +37,7 @@ rqmt = pkg_resources.require('nti.mailer')[0]
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.intersphinx',
+    'sphinx.ext.doctest',
     'sphinx.ext.viewcode',
     'repoze.sphinx.autointerface',
 ]
