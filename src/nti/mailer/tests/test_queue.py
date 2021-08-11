@@ -148,29 +148,37 @@ class TestLoopingMailerProcess(unittest.TestCase):
 class TestMailerWatcher(TestLoopingMailerProcess):
 
     def _getFUT(self):
-        return MailerWatcher
+        # This makes a one-shot object
+        class FUT(MailerWatcher):
+            # The timer that's started with this timeout will
+            # keep the loop alive. So keep it short.
+            max_process_frequency_seconds = 0.1
+            def _youve_got_mail(self):
+                super(FUT, self)._youve_got_mail()
+                # Deterministically close this down now so the event
+                # loop can exit, but only after we've actually
+                # processed something (this prevents hardcoding some
+                # timeout to wait for the watcher to fire) If this is
+                # messed up, the test will hang or fail.
+                self.close()
+        return FUT
 
     def _runOnce(self, proc):
         proc.run(seconds=0.1)
 
     def test_deliver_messages_come_while_waiting(self):
-        import platform
         import gevent
         # Next time we yield to the hub, this will get called.
         gevent.spawn(self._queue_two_messages)
 
-        idle_time = 1
-        # But some systems are very slow to detect changes. Notably,
+        # Some systems are very slow to detect changes. Notably,
         # libev on Darwin (macOS 10.15.7 on APFS) can take several
-        # seconds to observe the change.
-        if platform.system() == 'Darwin':
-            idle_time = 2
-            if 'libuv' not in str(gevent.config.loop):
-                idle_time = 7
+        # seconds to observe the change (5 -- 7); libuv finds it
+        # very quickly, usually.
+        mailer = self._makeOne()
 
-        watcher = self._makeOne()
         assert_that(self.queued_count, is_(0))
-        watcher.run(seconds=idle_time)
+        mailer.run()
         assert_that(self.queued_count, is_(2))
         assert_that(tuple(self.maildir), has_length(0))
 

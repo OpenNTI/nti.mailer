@@ -170,7 +170,19 @@ def _stat_modified_time(attrs):
         return attrs.st_mtime
     except AttributeError:
         # Or we could scale tv_sec to nanoseconds...
-        return (attrs.st_mtim.tv_sec, attrs.st_mtim.tv_nsec)
+        try:
+            return (attrs.st_mtim.tv_sec, attrs.st_mtim.tv_nsec)
+        except AttributeError: # pragma: no cover
+            # XXX: Bug on gevent on PyPy/Darwin/libev:
+            # AttributeError: cdata 'struct stat' has no field 'st_mtim'
+            # In fact, it only has the `st_nlink` field.
+            # Be sure we're on PyPy
+            if not hasattr(sys, 'pypy_version_info'):
+                # pylint:disable=raise-missing-from
+                raise NotImplementedError("Unsupported stat implementation")
+            # The best we can do is  return something that should compare
+            # unique so we always look like we're modified...
+            return id(attrs)
 
 def _stat_watcher_modified(watcher):
     """
