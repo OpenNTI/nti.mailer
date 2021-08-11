@@ -9,17 +9,18 @@ for the ``qp`` command line, using Amazon SES.
 from __future__ import print_function, absolute_import, division
 __docformat__ = "restructuredtext en"
 
-logger = __import__('logging').getLogger(__name__)
+
+import os
+import argparse
+import sys
+import logging
+import time
+from email.message import Message
 
 import gevent
 
-import os
-
-import time
-
 from zope import interface
-
-from email.message import Message
+from zope.cachedescriptors.property import Lazy
 
 import boto3
 
@@ -34,8 +35,8 @@ from repoze.sendmail.maildir import Maildir
 from repoze.sendmail.queue import ConsoleApp as _ConsoleApp
 from repoze.sendmail.queue import QueueProcessor
 
-from zope.cachedescriptors.property import Lazy
 
+logger = __import__('logging').getLogger(__name__)
 
 @interface.implementer(IMailer)
 class SESMailer(object):
@@ -45,7 +46,7 @@ class SESMailer(object):
     """
 
     def __init__(self, region='us-east-1'):
-        self.region=region
+        self.region = region
 
     @property
     def _ses_config(self):
@@ -57,7 +58,7 @@ class SESMailer(object):
         assert client
         return client
 
-    def close(self):
+    def close(self): # pragma: no cover
         pass
 
     def send(self, fromaddr, toaddrs, message):
@@ -67,15 +68,17 @@ class SESMailer(object):
         message = encode_message(message)
 
         # Send the mail using SES, transforming SESError and known
-        # subclasses into something the SMTP-based queue processor knows
-        # how to deal with.
-        # NOTE: now that we're here, we have the opportunity to de-VERP
-        # the fromaddr found in the message, but still use the VERP form
-        # in the fromaddr we pass to SES. In this way we can handle bounces
-        # with the recipient none-the-wiser. See also :mod:`nti.app.bulkemail.process`
-        # NOTE: Each recipient (To, CC, BCC) counts as a distinct message
-        # for purposes of the quota limits. There are a maximum of
-        # 50 dests per address. (http://docs.aws.amazon.com/ses/latest/APIReference/API_SendRawEmail.html)
+        # subclasses into something the SMTP-based queue processor
+        # knows how to deal with. NOTE: now that we're here, we have
+        # the opportunity to de-VERP the fromaddr found in the
+        # message, but still use the VERP form in the fromaddr we pass
+        # to SES. In this way we can handle bounces with the recipient
+        # none-the-wiser. See also :mod:`nti.app.bulkemail.process`
+        # NOTE: Each recipient (To, CC, BCC) counts as a distinct
+        # message for purposes of the quota limits. There are a
+        # maximum of 50 dests per address.
+        # (http://docs.aws.amazon.com/ses/latest/APIReference/API_SendRawEmail.html)
+        #
         # NOTE: It is recommended to send an email to individuals:
         # http://docs.aws.amazon.com/ses/latest/DeveloperGuide/sending-email.html
         # "When you send an email to multiple recipients (recipients
@@ -87,20 +90,16 @@ class SESMailer(object):
         # QQQ: The docs for SendRawEmail say that destinations is not required,
         # so how does that interact with what's in the message body?
         # Boto will accept either a string, a list of strings, or None
+        # pylint:disable=no-member
         self.client.send_raw_email(RawMessage={'Data': message},
                                    Source=fromaddr,
                                    Destinations=toaddrs)
 
 
-import argparse
-import sys
-import logging
-
 class ConsoleApp(_ConsoleApp):
 
-    def __init__(self, argv=None):  # pylint: disable=unused-argument
-        if argv is None:
-            argv = sys.argv
+    def __init__(self, argv=None):  # pylint: disable=super-init-not-called
+        argv = argv or sys.argv
         # Bypass the superclass, don't try to construct an SMTP mailer
         self.script_name = argv[0]
         self._process_args(argv[1:])
@@ -129,7 +128,8 @@ class MailerProcess(object):
         assert mailer
         try:
             processor = QueueProcessor(mailer,
-                                       self.queue_path, # Note this gets ignored by the Maildir factory we send
+                                       # Note this gets ignored by the Maildir factory we send
+                                       self.queue_path,
                                        Maildir=self._maildir_factory)
             logger.info('Processing messages %s' % (processor.maildir.path))
             processor.send_messages()
@@ -195,12 +195,6 @@ class MailerWatcher(MailerProcess):
         logger.debug('Stopping watcher for MailDir %s', self.watcher.path)
         self.watcher.stop()
 
-    def _do_process_queue(self):
-        # The path we are watching has been modified
-        #self._stop_watching()
-        super(MailerWatcher, self)._do_process_queue()
-        #self._start_watching()
-
     def _youve_got_mail(self):
         # We've detected we have mail. We want to debounce
         # this so we aren't going crazy. Process the queue at most ever
@@ -221,7 +215,8 @@ class MailerWatcher(MailerProcess):
         if self.debouncer.active is False:
             self.debouncer_count = 0
             self.debouncer.start(_timer_fired, self)
-            logger.info('Processing mail queue. Queue processing paused for %i seconds', self.max_process_frequency_seconds)
+            logger.info('Processing mail queue. Queue processing paused for %i seconds',
+                        self.max_process_frequency_seconds)
             self._do_process_queue()
         else:
             self.debouncer_count += 1
@@ -236,7 +231,7 @@ class MailerWatcher(MailerProcess):
             logger.debug('Maildir watcher detected MailDir modification')
             self._youve_got_mail()
 
-    def run(self, seconds=None):
+    def run(self, seconds=None): # pylint:disable=arguments-differ
         # Process once initially in case we have things in the queue already
         self._do_process_queue()
 
@@ -279,7 +274,9 @@ def run_process(): # pragma: no cover
                         format='%(asctime)s %(levelname)s %(message)s',
                         level=log_level)
 
-    _mailer_factory = SESMailer if not arguments.sesregion else (lambda: SESMailer(arguments.sesregion))
+    _mailer_factory = SESMailer
+    if arguments.sesregion:
+        _mailer_factory = lambda: SESMailer(arguments.sesregion)
 
     app = MailerWatcher(_mailer_factory, arguments.queue_path)
 

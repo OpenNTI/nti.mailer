@@ -15,7 +15,7 @@ except ImportError:  # pragma: no cover
 PY2 = sys.version_info[0] <= 2
 PY3 = sys.version_info[0] >= 3
 
-if PY2:
+if PY2: # pragma: no cover
     def is_nonstr_iter(v):
         return hasattr(v, '__iter__')
 else:

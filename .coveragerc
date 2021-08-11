@@ -1,5 +1,6 @@
 [run]
 source = nti.mailer
+concurrency = greenlet
 # New in 5.0; required for the GHA coveralls submission.
 relative_files = True
 omit =

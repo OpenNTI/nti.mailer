@@ -8,6 +8,10 @@ Implementation of the :class:`nti.mailer.interfaces.IVERP` protocol.
 
 from __future__ import print_function, absolute_import, division
 
+
+import zlib
+import struct
+
 from itsdangerous.exc import BadSignature
 
 from itsdangerous.signer import Signer
@@ -20,12 +24,15 @@ from zope.component.hooks import getSite
 
 from zope.security.interfaces import IPrincipal
 
+from six.moves import urllib_parse
+
 from nti.mailer._compat import parseaddr
 from nti.mailer._compat import formataddr
 
 from nti.mailer.interfaces import IVERP
 from nti.mailer.interfaces import IMailerPolicy
 from nti.mailer.interfaces import IEmailAddressable
+
 
 logger = __import__('logging').getLogger(__name__)
 
@@ -37,9 +44,6 @@ def _get_signer_secret(default_secret="$Id$"):
         result = policy.get_signer_secret()
     return result or default_secret
 
-
-import zlib
-import struct
 
 def _to_bytes(s, encoding='ascii'):
     # The default encoding of ascii is fine for our localized purpose of email, right?
@@ -109,7 +113,7 @@ def _get_default_sender():
 def _brand_name(request):
     dng = component.queryMultiAdapter((getSite(), request),
                                       IDisplayNameGenerator)
-    return dng() if dng != None else None
+    return dng() if dng is not None else None
 
 
 def _find_default_realname(request=None):
@@ -137,11 +141,10 @@ def _find_default_realname(request=None):
 def __make_signer(default_key, **kwargs):
     if not default_key:
         return _make_signer(**kwargs)
-    else:
-        return _make_signer(default_key=default_key, **kwargs)
+    return _make_signer(default_key=default_key, **kwargs)
 
 
-from six.moves import urllib_parse
+
 
 
 def _sign(signer, principal_ids):
