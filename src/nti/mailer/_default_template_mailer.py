@@ -205,8 +205,7 @@ def create_simple_html_text_email(base_template,
             "Mismatch between the explicit context and the template_args context. "
             "In the future this might be an error. Currently, one will be used for translation "
             "and one will be used in the template.",
-            FutureWarning,
-            stacklevel=3
+            stacklevel=2
         )
 
     cc = _as_recipient_list(cc)
@@ -245,15 +244,13 @@ def create_simple_html_text_email(base_template,
         # This should be fixed with 1.0a2
         the_context_name = 'nti_context' if extension == text_template_extension and text_template_extension != '.txt' else 'context'
         result = {}
-        if request:
-            result[the_context_name] = context
-        if template_args:
-            result.update(template_args)
+        result[the_context_name] = context
+        result.update(template_args)
 
         # Because the "correct" name for the context variable cannot be known
         # by the ``IMailerTemplateArgsUtility``, they should not attempt to
         # set it. Thus, we are always correct using our *context* value we
-        # discovered above.
+        # discovered above, except in the mismatch case.
         if the_context_name == 'nti_context' and 'context' in template_args:
             result[the_context_name] = template_args['context']
             del result['context']
@@ -350,7 +347,7 @@ def queue_simple_html_text_email(*args, **kwargs):
         kwargs['_level'] = 4
     message_factory = kwargs.pop('message_factory', create_simple_html_text_email)
     if message_factory is not create_simple_html_text_email:
-        warnings.warn("The message_factory argument is deprecated.", FutureWarning, stacklevel=2)
+        warnings.warn("The message_factory argument is deprecated.", stacklevel=2)
     message = message_factory(*args, **kwargs)
     # There are cases where this will be none (bounced email handling, missing
     # subject - error?). In at least the bounced email case, we want to avoid
