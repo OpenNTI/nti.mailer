@@ -17,22 +17,35 @@ from zope import interface
 
 from zope.security.interfaces import IPrincipal
 
+__all__ = (
+    'IMailer',
+    'IMailDelivery',
+    'IPrincipalEmailValidation',
+    'IEmailAddressable',
+    'EmailAddressablePrincipal',
+    'ITemplatedMailer',
+    'IVERP',
+    'IMailerPolicy',
+    'IMailerTemplateArgsUtility',
+)
+
+# pylint:disable=inherit-non-class,no-self-argument,no-method-argument
+
 try:
     from pyramid_mailer.interfaces import IMailer
-except ImportError:
+except ImportError: # pragma: no cover
     class IMailer(interface.Interface):
         pass
-IMailer = IMailer  # [re]export, primarily for testing
 
 try:
     from repoze.sendmail.interfaces import IMailDelivery
-except ImportError:
+except ImportError: # pragma: no cover
     class IMailDelivery(interface.Interface):
         transaction_manager = interface.Attribute(u"The transaction manager to use.")
 
         def send(fromaddr, toaddrs, message):
             pass
-IMailDelivery = IMailDelivery  # [re]export, primarily for testing
+
 
 from nti.schema.field import TextLine
 # pylint:disable=I0011,E0213

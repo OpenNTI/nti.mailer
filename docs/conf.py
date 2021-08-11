@@ -186,7 +186,11 @@ intersphinx_mapping = {
     'http://zopemimetype.readthedocs.io/en/latest/': None,
     'http://zopeproxy.readthedocs.io/en/latest': None,
     'http://zopeschema.readthedocs.io/en/latest/': None,
+    'https://zopesecurity.readthedocs.io/en/latest/': None,
     'http://zopelifecycleevent.readthedocs.io/en/latest/': None,
+
+    'https://docs.pylonsproject.org/projects/pyramid_mailer/en/latest/': None,
+    'https://repozesendmail.readthedocs.io/en/latest/': None,
 }
 
 

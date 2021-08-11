@@ -3,6 +3,7 @@
 """
 Utility functions having to do with sending emails.
 
+This module provides the :class:`nti.mailer.interfaces.ITemplatedMailer` interface.
 """
 
 from __future__ import division
