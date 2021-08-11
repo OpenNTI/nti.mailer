@@ -5,8 +5,10 @@ from __future__ import print_function, absolute_import, division
 
 # disable: accessing protected members, too many methods
 # pylint: disable=W0212,R0904
+import unittest
+
 import fudge
-from nti.mailer._compat import parseaddr
+
 
 from hamcrest import is_
 from hamcrest import none
@@ -26,7 +28,6 @@ from pyramid_mailer.mailer import DummyMailer as _DummyMailer
 
 from repoze.sendmail.interfaces import IMailDelivery
 
-import unittest
 
 from zope import component
 
@@ -38,6 +39,7 @@ from zope.security.interfaces import IPrincipal
 
 from nti.app.pyramid_zope import z3c_zpt
 
+from nti.mailer._compat import parseaddr
 from nti.mailer._default_template_mailer import _pyramid_message_to_message
 from nti.mailer._default_template_mailer import create_simple_html_text_email
 
@@ -52,9 +54,6 @@ class ITestMailDelivery(IMailer, IMailDelivery):
 class TestMailDelivery(_DummyMailer):
 
     default_sender = 'no-reply@nextthought.com'
-
-    def __init__(self):
-        super(TestMailDelivery, self).__init__()
 
     def send(self, fromaddr, toaddr, message):
         __traceback_info__ = fromaddr, toaddr
@@ -102,193 +101,197 @@ class PyramidMailerLayer(object):
 @interface.implementer(IPrincipalEmailValidation)
 class TestEmailAddressablePrincipal(EmailAddressablePrincipal):
 
-        def __init__(self, user, is_valid=True, *args, **kwargs):
-                super(TestEmailAddressablePrincipal, self).__init__(user, *args, **kwargs)
-                self.is_valid = is_valid
+    def __init__(self, user, is_valid=True, *args, **kwargs):
+        super(TestEmailAddressablePrincipal, self).__init__(user, *args, **kwargs)
+        self.is_valid = is_valid
 
-        def is_valid_email(self):
-                return self.is_valid
+    def is_valid_email(self):
+        return self.is_valid
 
 
 @interface.implementer(IBrowserRequest)
 class Request(object):
-        context = None
-        response = None
-        application_url = 'foo'
+    context = None
+    response = None
+    application_url = 'foo'
 
-        def __init__(self):
-                self.annotations = {}
+    def __init__(self):
+        self.annotations = {}
 
-        def get(self, key, default=None):
-                return default
+    def get(self, key, default=None):
+        return default
 
 
 class TestEmail(unittest.TestCase):
 
-        layer = PyramidMailerLayer
+    layer = PyramidMailerLayer
 
-        @fudge.patch('nti.mailer._verp._brand_name')
-        def test_create_mail_message_with_non_ascii_name_and_string_bcc(self, brand_name):
-                brand_name.is_callable().returns(None)
+    @fudge.patch('nti.mailer._verp._brand_name')
+    def test_create_mail_message_with_non_ascii_name_and_string_bcc(self, brand_name):
+        brand_name.is_callable().returns(None)
 
-                class User(object):
-                        username = 'the_user'
+        class User(object):
+            username = 'the_user'
 
-                class Profile(object):
-                        # Note the umlaut e
-                        realname = u'Suzë Schwartz'
+        class Profile(object):
+            # Note the umlaut e
+            realname = u'Suzë Schwartz'
 
-                user = User()
-                profile = Profile()
-                request = Request()
-                request.context = user
+        user = User()
+        profile = Profile()
+        request = Request()
+        request.context = user
 
-                token_url = 'url_to_verify_email'
-                msg = create_simple_html_text_email('tests/templates/test_new_user_created',
-                                                    subject='Hi there',
-                                                    recipients=['jason.madden@nextthought.com'],
-                                                    bcc='foo@bar.com',
-                                                    template_args={'user': user,
-                                                                   'profile': profile,
-                                                                   'context': user,
-                                                                   'href': token_url,
-                                                                   'support_email': 'support_email' },
-                                                    package='nti.mailer',
-                                                    text_template_extension=".mak",
-                                                    request=request)
-                assert_that(msg, is_(not_none()))
+        token_url = 'url_to_verify_email'
+        msg = create_simple_html_text_email('tests/templates/test_new_user_created',
+                            subject='Hi there',
+                            recipients=['jason.madden@nextthought.com'],
+                            bcc='foo@bar.com',
+                            template_args={'user': user,
+                                           'profile': profile,
+                                           'context': user,
+                                           'href': token_url,
+                                           'support_email': 'support_email' },
+                            package='nti.mailer',
+                            text_template_extension=".mak",
+                            request=request)
+        assert_that(msg, is_(not_none()))
 
-                base_msg = _pyramid_message_to_message(msg, ['jason.madden@nextthought.com'], None)
+        base_msg = _pyramid_message_to_message(msg, ['jason.madden@nextthought.com'], None)
 
-                base_msg_string = str(base_msg)
-                # quoted-prinatble encoding of iso-8859-1 value of umlaut-e
-                assert_that(base_msg_string, contains_string('Hi=20Suz=EB=20Schwartz'))
+        base_msg_string = str(base_msg)
+        # quoted-prinatble encoding of iso-8859-1 value of umlaut-e
+        assert_that(base_msg_string, contains_string('Hi=20Suz=EB=20Schwartz'))
 
-                # Because we can't get to IPrincial, no VERP info
-                name, email = parseaddr(msg.sender)
-                assert_that(name, is_('NextThought'))
-                assert_that(email, is_('no-reply@nextthought.com'))
+        # Because we can't get to IPrincial, no VERP info
+        name, email = parseaddr(msg.sender)
+        assert_that(name, is_('NextThought'))
+        assert_that(email, is_('no-reply@nextthought.com'))
 
-                #
-                assert_that(msg, has_property('bcc', ['foo@bar.com']))
+        #
+        assert_that(msg, has_property('bcc', ['foo@bar.com']))
 
-        @fudge.patch('nti.mailer._verp._brand_name')
-        def test_create_email_with_verp(self, brand_name):
-                brand_name.is_callable().returns(None)
+    @fudge.patch('nti.mailer._verp._brand_name')
+    def test_create_email_with_verp(self, brand_name):
+        brand_name.is_callable().returns(None)
 
-                @interface.implementer(IPrincipal, IEmailAddressable)
-                class User(object):
-                        username = 'the_user'
-                        id = 'the_user'
-                        email = 'thomas.stockdale@nextthought.com'  # this address encodes badly to simple base64
+        @interface.implementer(IPrincipal, IEmailAddressable)
+        class User(object):
+            username = 'the_user'
+            id = 'the_user'
+            # this address encodes badly to simple base64
+            # XXX: What?
+            email = 'thomas.stockdale@nextthought.com'
 
-                class Profile(object):
-                        realname = u'Suzë Schwartz'
+        class Profile(object):
+            realname = u'Suzë Schwartz'
 
-                user = User()
-                profile = Profile()
-                request = Request()
-                request.context = user
+        user = User()
+        profile = Profile()
+        request = Request()
+        request.context = user
 
-                token_url = 'url_to_verify_email'
-                msg = create_simple_html_text_email('tests/templates/test_new_user_created',
-                                                    subject='Hi there',
-                                                    recipients=[TestEmailAddressablePrincipal(user, is_valid=True)],
-                                                    template_args={'user': user,
-                                                                   'profile': profile,
-                                                                   'context': user,
-                                                                   'href': token_url,
-                                                                   'support_email': 'support_email' },
-                                                    package='nti.mailer',
-                                                    request=request)
-                assert_that(msg, is_(not_none()))
-                # import pyramid_mailer
-                # from pyramid_mailer.interfaces import IMailer
-                # from zope import component
-                # mailer = pyramid_mailer.Mailer.from_settings( {'mail.queue_path': '/tmp/ds_maildir', 'mail.default_sender': 'no-reply@nextthought.com' } )
-                # component.provideUtility( mailer, IMailer )
-                # component.provideUtility(mailer.queue_delivery)
-                # from .._default_template_mailer import _send_mail
-                # _send_mail(msg, [user], None)
-                # import transaction
-                # transaction.commit()
+        token_url = 'url_to_verify_email'
+        msg = create_simple_html_text_email('tests/templates/test_new_user_created',
+                            subject='Hi there',
+                            recipients=[TestEmailAddressablePrincipal(user, is_valid=True)],
+                            template_args={'user': user,
+                                           'profile': profile,
+                                           'context': user,
+                                           'href': token_url,
+                                           'support_email': 'support_email' },
+                            package='nti.mailer',
+                            request=request)
+        assert_that(msg, is_(not_none()))
+        # import pyramid_mailer
+        # from pyramid_mailer.interfaces import IMailer
+        # from zope import component
+        # mailer = pyramid_mailer.Mailer.from_settings(
+        #    {'mail.queue_path': '/tmp/ds_maildir', 'mail.default_sender': 'no-reply@nextthought.com'
+        #  } )
+        # component.provideUtility( mailer, IMailer )
+        # component.provideUtility(mailer.queue_delivery)
+        # from .._default_template_mailer import _send_mail
+        # _send_mail(msg, [user], None)
+        # import transaction
+        # transaction.commit()
 
-                _pyramid_message_to_message(msg, [user], None)
+        _pyramid_message_to_message(msg, [user], None)
 
-                # we can get to IPrincipal, so we have VERP
-                # The first part will be predictable, the rest won't
-                name, email = parseaddr(msg.sender)
-                assert_that(name, is_('NextThought'))
-                assert_that(email, contains_string('no-reply+'))
+        # we can get to IPrincipal, so we have VERP
+        # The first part will be predictable, the rest won't
+        name, email = parseaddr(msg.sender)
+        assert_that(name, is_('NextThought'))
+        assert_that(email, contains_string('no-reply+'))
 
-                # Test invalid
-                invalid_user = TestEmailAddressablePrincipal(user, is_valid=False)
-                msg = create_simple_html_text_email('tests/templates/test_new_user_created',
-                                                    subject='Hi there',
-                                                    recipients=[invalid_user],
-                                                    template_args={'user': user,
-                                                                   'profile': profile,
-                                                                   'context': user,
-                                                                   'href': token_url,
-                                                                   'support_email': 'support_email' },
-                                                    package='nti.mailer',
-                                                    request=request)
-                assert_that(msg, none())
+        # Test invalid
+        invalid_user = TestEmailAddressablePrincipal(user, is_valid=False)
+        msg = create_simple_html_text_email('tests/templates/test_new_user_created',
+                            subject='Hi there',
+                            recipients=[invalid_user],
+                            template_args={'user': user,
+                                           'profile': profile,
+                                           'context': user,
+                                           'href': token_url,
+                                           'support_email': 'support_email' },
+                            package='nti.mailer',
+                            request=request)
+        assert_that(msg, none())
 
-        @fudge.patch('nti.mailer._verp._brand_name')
-        def test_create_email_with_mako(self, brand_name):
-            brand_name.is_callable().returns(None)
+    @fudge.patch('nti.mailer._verp._brand_name')
+    def test_create_email_with_mako(self, brand_name):
+        brand_name.is_callable().returns(None)
 
-            user = _User('the_user')
-            request = Request()
-            request.context = user
+        user = _User('the_user')
+        request = Request()
+        request.context = user
 
-            msg = self._create_simple_email(request,
-                                            text_template_extension=".mak")
-            assert_that(msg, is_(not_none()))
+        msg = self._create_simple_email(request,
+                                        text_template_extension=".mak")
+        assert_that(msg, is_(not_none()))
 
-        @fudge.patch('nti.mailer._verp._brand_name')
-        def test_create_email_no_request_context(self, brand_name):
-            brand_name.is_callable().returns(None)
+    @fudge.patch('nti.mailer._verp._brand_name')
+    def test_create_email_no_request_context(self, brand_name):
+        brand_name.is_callable().returns(None)
 
-            @interface.implementer(IBrowserRequest)
-            class Request(object):
-                response = None
-                application_url = 'foo'
+        @interface.implementer(IBrowserRequest)
+        class Request(object):
+            response = None
+            application_url = 'foo'
 
-                def __init__(self):
-                    self.annotations = {}
+            def __init__(self):
+                self.annotations = {}
 
-                def get(self, key, default=None):
-                    return default
+            def get(self, key, default=None):
+                return default
 
-            request = Request()
-            msg = self._create_simple_email(request,
-                                            text_template_extension=".mak")
-            assert_that(msg, is_(not_none()))
+        request = Request()
+        msg = self._create_simple_email(request,
+                                        text_template_extension=".mak")
+        assert_that(msg, is_(not_none()))
 
-        def _create_simple_email(self,
-                                 request,
-                                 user=None,
-                                 profile=None,
-                                 text_template_extension=".txt"):
+    def _create_simple_email(self,
+                 request,
+                 user=None,
+                 profile=None,
+                 text_template_extension=".txt"):
 
-            user = user or _User('the_user')
-            profile = profile or _Profile(u'Mickey Mouse')
+        user = user or _User('the_user')
+        profile = profile or _Profile(u'Mickey Mouse')
 
-            token_url = 'url_to_verify_email'
-            msg = create_simple_html_text_email('tests/templates/test_new_user_created',
-                                                subject='Hi there',
-                                                recipients=['jason.madden@nextthought.com'],
-                                                template_args={'user': user,
-                                                               'profile': profile,
-                                                               'context': user,
-                                                               'href': token_url,
-                                                               'support_email': 'support_email'},
-                                                package='nti.mailer',
-                                                text_template_extension=text_template_extension,
-                                                request=request)
-            return msg
+        token_url = 'url_to_verify_email'
+        msg = create_simple_html_text_email('tests/templates/test_new_user_created',
+                        subject='Hi there',
+                        recipients=['jason.madden@nextthought.com'],
+                        template_args={'user': user,
+                                       'profile': profile,
+                                       'context': user,
+                                       'href': token_url,
+                                       'support_email': 'support_email'},
+                        package='nti.mailer',
+                        text_template_extension=text_template_extension,
+                        request=request)
+        return msg
 
 
 class _User(object):
