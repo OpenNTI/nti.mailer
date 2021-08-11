@@ -4,7 +4,6 @@
 Processors for :mod:`repoze.sendmail`, intended as a drop-in replacement
 for the ``qp`` command line, using Amazon SES.
 
-.. $Id$
 """
 
 from __future__ import print_function, absolute_import, division
@@ -115,7 +114,7 @@ class MailerProcess(object):
     """
 
     _exit = False
-    
+
     def __init__(self, mailer_factory, queue_path, sleep_seconds=120):  # pylint: disable=unused-argument
         self.mailer_factory = mailer_factory
         self.sleep_seconds = sleep_seconds
@@ -128,7 +127,7 @@ class MailerProcess(object):
     def _do_process_queue(self):
         mailer = self.mailer_factory()
         assert mailer
-        try:               
+        try:
             processor = QueueProcessor(mailer,
                                        self.queue_path, # Note this gets ignored by the Maildir factory we send
                                        Maildir=self._maildir_factory)
@@ -249,11 +248,13 @@ _LOG_LEVELS = [logging.ERROR, logging.WARN, logging.INFO, logging.DEBUG]
 
 def _log_level_for_verbosity(verbosity=0):
     return _LOG_LEVELS[min(max(verbosity, 0), len(_LOG_LEVELS) - 1)]
-    
 
-def run_process():  # pragma NO COVERAGE
-    
-    parser = argparse.ArgumentParser(description='Run a process that processes the mail queue on some interval')
+
+def run_process(): # pragma: no cover
+
+    parser = argparse.ArgumentParser(
+        description='Spawn a process that stays alive, periodically polling the mail queue '
+        'and sending new mail using SES.')
     parser.add_argument('queue_path',
                         help='The path to the maildir',
                         action='store')
@@ -265,27 +266,47 @@ def run_process():  # pragma NO COVERAGE
                         default=1)
     parser.add_argument('-w', '--debounce-interval',
                         dest='interval',
-                        help='The number of seconds to wait between dumping the queue.',
+                        help=('The number of seconds to wait between dumping the queue '
+                              '(default: %(default)s)'),
                         action='store',
+                        default=MailerWatcher.max_process_frequency_seconds,
                         type=int)
-    
+
     arguments = parser.parse_args()
 
     log_level = _log_level_for_verbosity(arguments.verbose)
-    logging.basicConfig(stream=sys.stderr, format='%(asctime)s %(levelname)s %(message)s', level=log_level)
-    
+    logging.basicConfig(stream=sys.stderr,
+                        format='%(asctime)s %(levelname)s %(message)s',
+                        level=log_level)
+
     _mailer_factory = SESMailer if not arguments.sesregion else (lambda: SESMailer(arguments.sesregion))
-    
+
     app = MailerWatcher(_mailer_factory, arguments.queue_path)
 
     if arguments.interval:
-        app.max_process_frequency_seconds = max(_MINIMUM_DEBOUNCE_INTERVAL_SECONDS, arguments.interval)
+        app.max_process_frequency_seconds = max(_MINIMUM_DEBOUNCE_INTERVAL_SECONDS,
+                                                arguments.interval)
 
     logger.info('Using debounce interval of %i', app.max_process_frequency_seconds)
     app.run()
 
-def run_console():  # pragma NO COVERAGE
-    logging.basicConfig(stream=sys.stderr, format='%(asctime)s %(levelname)s %(message)s', level=logging.WARN)
+def run_console(): # pragma: no cover
+    if '--help' in sys.argv:
+        # Override the help message we get from repoze.sendmail, we
+        # ignore all the SMTP stuff it wants to do.
+        parser = argparse.ArgumentParser(
+            description='Process the mail queue one time and exit. '
+            'Mail found in the mail queue will be sent using default SES settings.'
+        )
+        parser.add_argument('queue_path',
+                        help='The path to the maildir',
+                        action='store')
+        parser.parse_args()
+        return
+
+    logging.basicConfig(stream=sys.stderr,
+                        format='%(asctime)s %(levelname)s %(message)s',
+                        level=logging.WARN)
     app = ConsoleApp()
     app.main()
 

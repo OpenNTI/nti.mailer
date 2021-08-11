@@ -6,6 +6,7 @@
    :caption: Contents:
 
    api
+   programs
    changelog
 
 
