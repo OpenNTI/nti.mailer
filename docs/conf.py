@@ -37,6 +37,7 @@ rqmt = pkg_resources.require('nti.mailer')[0]
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.intersphinx',
+    'sphinx.ext.doctest',
     'sphinx.ext.viewcode',
     'repoze.sphinx.autointerface',
 ]
@@ -166,9 +167,28 @@ texinfo_documents = [
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {
-    'https://docs.python.org/': None,
-    'https://persistent.readthedocs.io/en/latest': None,
+    "http://docs.pylonsproject.org/projects/pyramid/en/latest/": None,
+    #'https://ntiwref.readthedocs.io/en/latest': None,
+    'http://docs.python.org/': None,
+    'http://ntischema.readthedocs.io/en/latest/': None,
+    'http://ntizodb.readthedocs.io/en/latest/': None,
+    'http://persistent.readthedocs.io/en/latest': None,
+    'http://zodb.readthedocs.io/en/latest': None,
+
+    'http://zopecomponent.readthedocs.io/en/latest': None,
+    'http://zopecontainer.readthedocs.io/en/latest': None,
+    'http://zopedatetime.readthedocs.io/en/latest': None,
+    'http://zopedublincore.readthedocs.io/en/latest': None,
+    'http://zopeevent.readthedocs.io/en/latest': None,
+    'http://zopehookable.readthedocs.io/en/latest': None,
+    'http://zopeinterface.readthedocs.io/en/latest': None,
+    'http://zopeintid.readthedocs.io/en/latest/': None,
+    'http://zopemimetype.readthedocs.io/en/latest/': None,
+    'http://zopeproxy.readthedocs.io/en/latest': None,
+    'http://zopeschema.readthedocs.io/en/latest/': None,
+    'http://zopelifecycleevent.readthedocs.io/en/latest/': None,
 }
+
 
 extlinks = {
     'issue': ('https://github.com/NextThought/nti.mailer/issues/%s',
@@ -176,6 +196,14 @@ extlinks = {
     'pr': ('https://github.com/NextThought/nti.mailer/pull/%s',
            'pull request #')}
 
-autodoc_default_flags = ['members', 'show-inheritance']
+
+# Sphinx 1.8+ prefers this to `autodoc_default_flags`. It's documented that
+# either True or None mean the same thing as just setting the flag, but
+# only None works in 1.8 (True works in 2.0)
+autodoc_default_options = {
+    'members': None,
+    'show-inheritance': None,
+}
+
 autoclass_content = 'both'
 autodoc_member_order = 'bysource'

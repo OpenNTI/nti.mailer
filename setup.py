@@ -13,10 +13,9 @@ TESTS_REQUIRE = [
     'fudge',
     'nti.testing',
     'zope.testrunner',
-    'nti.app.pyramid_zope',
+    'nti.app.pyramid-zope >= 0.0.3',
     'pyramid_chameleon',
     'pyramid_mako',
-    'nose'
 ]
 
 
@@ -27,7 +26,7 @@ def _read(fname):
 
 setup(
     name='nti.mailer',
-    version=_read('version.txt').strip(),
+    version="1.0.0.dev0",
     author='Josh Zuech',
     author_email='josh.zuech@nextthought.com',
     description="NTI mailer",
@@ -47,6 +46,9 @@ setup(
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: Implementation :: PyPy',
     ],
@@ -65,8 +67,15 @@ setup(
         'itsdangerous',
         'nti.schema',
         'repoze.sendmail',
-        'premailer',
-        'pyramid',
+        # premailer dropped Python 2 support in version 3.7;
+        # unfortunately, they don't have the proper ``python_requires`` metadata
+        # to let installers know this.
+        'premailer < 3.7.0; python_version == "2.7"',
+        'premailer >= 3.7.0; python_version != "2.7"',
+        # The < 2.0 part is from nti.app.pyramid_zope, a test
+        # dependency. But older released versions on PyPI (< 0.0.3)
+        # do not specify this correctly.
+        'pyramid < 2.0',
         'pyramid_mailer',
         'six',
         'ZODB',
@@ -91,4 +100,5 @@ setup(
         ],
     },
     entry_points=entry_points,
+    python_requires=">=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5",
 )
