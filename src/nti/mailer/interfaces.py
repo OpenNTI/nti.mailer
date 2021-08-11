@@ -134,7 +134,8 @@ class ITemplatedMailer(interface.Interface):
                                      attachments=(),
                                      package=None,
                                      text_template_extension='.txt',
-                                     message_factory=None):
+                                     message_factory=None,
+                                     context=None):
         """
         Transactionally queues an email for sending. The email has both a
         plain text and an HTML version.
@@ -164,11 +165,22 @@ class ITemplatedMailer(interface.Interface):
                 passed to this function (minus this param) to create a
                 :class:`pyramid_mailer.message.Message` by rendering the pair
                 of templates to create a text and html part. Defaults to
-                :meth:`create_simple_html_text_email`.
+                :meth:`create_simple_html_text_email`. This argument is deprecated;
+                if you need it, please file an issue explaining your use-case.
 
 
         :return: The :class:`pyramid_mailer.message.Message` we sent, if we sent one,
                 otherwise None.
+
+        .. versionchanged:: 0.0.1
+           Now, if the *subject* is a :class:`zope.i18nmessageid.Message`, it will
+           be translated. Note that this only works if you do not override the
+           *message_factory* argument.
+        .. versionchanged:: 0.0.1
+           Added the *context* argument. If this argument is not supplied, the
+           value of ``request.context`` will be used. As a last resort, ``template_args['context']
+           will be used. (If both *context* or ``request.context`` and a template argument value
+           are given, they should all be the same object.)
         """
 
     def create_simple_html_text_email(base_template,
@@ -179,7 +191,8 @@ class ITemplatedMailer(interface.Interface):
                                       attachments=(),
                                       package=None,
                                       bcc=(),
-                                      text_template_extension='.txt'):
+                                      text_template_extension='.txt',
+                                      context=None):
         """
         The same arguments and return types as :meth:`queue_simple_html_text_email`,
         but without the actual transactional delivery.
