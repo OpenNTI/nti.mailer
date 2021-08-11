@@ -24,7 +24,12 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('setup.*') }}
+        key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{hashFiles('setup.*') }}
+    - name: Install system dependencies (ubuntu)
+      if: startsWith(runner.os, 'Linux')
+      # for building lxml, typically on PyPy
+      run: |
+        sudo apt-get install -y libxml2-dev libxslt-dev
     - name: Install dependencies
       run: |
         python -m pip install -U pip setuptools wheel
