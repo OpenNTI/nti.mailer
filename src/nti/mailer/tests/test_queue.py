@@ -21,8 +21,6 @@ from hamcrest import has_length
 import fudge
 
 
-
-
 from repoze.sendmail.delivery import QueuedMailDelivery
 from repoze.sendmail.maildir import Maildir
 
@@ -71,10 +69,11 @@ class TestMailer(unittest.TestCase):
         mailer.send('from', ('to',), self.message)
 
         encoded_msg_sent = send_kwargs['RawMessage']['Data']
-        if not isinstance(encoded_msg_sent, str):
-            sent_msg_str = encoded_msg_sent.decode('ascii')
-        else:
-            sent_msg_str = encoded_msg_sent
+        sent_msg_str = (
+            encoded_msg_sent.decode('ascii')
+            if not isinstance(encoded_msg_sent, str)
+            else encoded_msg_sent
+        )
         # In order to get reasonable error messages, we want to do a line-wise
         # comparison. Moreover, Python 3 and Python 2 produce slightly different
         # line breaks and spacing. This is the case in headers: Python 3
@@ -125,3 +124,39 @@ class TestMailerWatcher(unittest.TestCase):
         watcher.run(seconds=.1)
 
         assert_that(tuple(self.maildir), has_length(0))
+
+    def test_stat_modified_time(self):
+        from nti.mailer.queue import _stat_modified_time
+        class Watcher1(object):
+            st_mtime = 42
+
+        assert_that(_stat_modified_time(Watcher1()), is_(42))
+
+        class Watcher2(object):
+            class st_mtim(object):
+                tv_sec = 36
+
+        assert_that(_stat_modified_time(Watcher2()), is_(36))
+
+    def test_stat_watcher_modified(self):
+        from nti.mailer.queue import _stat_watcher_modified
+        class Watcher(object):
+            class prev(object):
+                st_mtime = 42
+            class attr(object):
+                st_mtime = 42
+
+        self.assertFalse(_stat_watcher_modified(Watcher()))
+
+        Watcher.prev.st_mtime = 36
+        self.assertTrue(_stat_watcher_modified(Watcher()))
+
+
+class TestConsoleApp(unittest.TestCase):
+
+    def test_construct(self):
+        from nti.mailer.queue import ConsoleApp
+        import tempfile
+        args = ['console', tempfile.gettempdir()]
+        app = ConsoleApp(args)
+        assert_that(app.mailer, is_(SESMailer))

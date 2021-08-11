@@ -55,18 +55,7 @@ class ITestMailDelivery(IMailer, IMailDelivery):
     pass
 
 class TestMailDelivery(_DummyMailer):
-
     default_sender = 'no-reply@nextthought.com'
-
-    def send(self, fromaddr, toaddr, message):
-        __traceback_info__ = fromaddr, toaddr
-        self.queue.append(message)
-        # compat with pyramid_mailer messages
-        message.subject = message.get('Subject')
-        payload = message.get_payload()
-        message.body = payload[0].get_payload()
-        if len(payload) > 1:
-            message.html = payload[1].get_payload()
 
 
 @interface.implementer(IBrowserRequest)
@@ -78,8 +67,6 @@ class Request(object):
         self.annotations = {}
         self.context = None
 
-    def get(self, key, default=None):
-        return default
 
 @interface.implementer(IUserPreferredLanguages)
 class TestPreferredLanguages(object):
