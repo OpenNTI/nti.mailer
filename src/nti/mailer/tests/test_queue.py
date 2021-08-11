@@ -21,7 +21,7 @@ from hamcrest import has_length
 import fudge
 
 
-from botocore.exceptions import EndpointConnectionError
+
 
 from repoze.sendmail.delivery import QueuedMailDelivery
 from repoze.sendmail.maildir import Maildir
@@ -43,6 +43,8 @@ class TestMailer(unittest.TestCase):
         self.message = email.message_from_string(MSG_STRING)
 
     def test_region(self):
+        from botocore.exceptions import EndpointConnectionError
+        from botocore.exceptions import NoCredentialsError
         # Defaults to us-east-1
         mailer = SESMailer()
 
@@ -52,7 +54,7 @@ class TestMailer(unittest.TestCase):
         assert_that(mailer.client.meta.endpoint_url, is_('https://email.us-west-2.amazonaws.com'))
 
         mailer = SESMailer('bad-region')
-        with self.assertRaises(EndpointConnectionError):
+        with self.assertRaises((EndpointConnectionError, NoCredentialsError)):
             mailer.client.get_send_quota()
 
     def test_send(self):

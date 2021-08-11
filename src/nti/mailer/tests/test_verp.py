@@ -10,7 +10,7 @@ from __future__ import absolute_import
 import contextlib
 
 from hamcrest import is_
-from hamcrest import contains
+from hamcrest import contains_exactly as contains
 from hamcrest import assert_that
 
 import fudge
