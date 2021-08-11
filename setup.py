@@ -85,6 +85,7 @@ setup(
         'zope.component',
         'zope.container',
         'zope.dottedname',
+        'zope.i18n',
         'zope.interface',
         'zope.intid',
         'zope.location',
