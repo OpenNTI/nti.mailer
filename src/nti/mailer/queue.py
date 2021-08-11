@@ -14,12 +14,12 @@ import os
 import argparse
 import sys
 import logging
-import time
 from email.message import Message
 
 import gevent
 
 from zope import interface
+from zope import deprecation
 from zope.cachedescriptors.property import Lazy
 
 import boto3
@@ -107,10 +107,7 @@ class ConsoleApp(_ConsoleApp):
         getattr(self.mailer, 'client')
 
 
-class MailerProcess(object):
-    """
-    A mailer processor that dumps the queue on a provided interval.
-    """
+class _AbstractMailerProcess(object):
 
     _exit = False
 
@@ -140,22 +137,40 @@ class MailerProcess(object):
                 pass
             mailer = None
 
+    def close(self):
+        raise NotImplementedError
+
+
+class LoopingMailerProcess(_AbstractMailerProcess):
+    """
+    A mailer processor that dumps the queue on a provided interval.
+    """
+
+    # Hook for testing.
+    _sleep_after_run = staticmethod(gevent.sleep)
+
     def run(self):
         while not self._exit:
             self._do_process_queue()
             logger.debug('Going to sleep for %i seconds' % (self.sleep_seconds))
-            time.sleep(self.sleep_seconds)
+            self._sleep_after_run(self.sleep_seconds)
+
+    def close(self):
+        self._exit = True
 
 def _stat_modified_time(attrs):
     """
     libev and libuv expose different attributes.
     Specifically modified time is st_mtime or st_mtim respectively.
-    In libuv we need to look at st_mtim.tv_sec
+
+    In libuv we need to look at st_mtim.tv_sec *and* st_mtim.tv_nsec:
+    in case modifications happen within the second we compared to.
     """
     try:
         return attrs.st_mtime
     except AttributeError:
-        return attrs.st_mtim.tv_sec
+        # Or we could scale tv_sec to nanoseconds...
+        return (attrs.st_mtim.tv_sec, attrs.st_mtim.tv_nsec)
 
 def _stat_watcher_modified(watcher):
     """
@@ -168,7 +183,7 @@ def _stat_watcher_modified(watcher):
 _MINIMUM_DEBOUNCE_INTERVAL_SECONDS = 10
 
 
-class MailerWatcher(MailerProcess):
+class MailerWatcher(_AbstractMailerProcess):
     """
     A Mailer processor that watches for changes in the mail directory
     using gevent stat watchers.
@@ -182,8 +197,13 @@ class MailerWatcher(MailerProcess):
     def __init__(self, *args, **kwargs):
         super(MailerWatcher, self).__init__(*args, **kwargs)
         hub = gevent.get_hub()
-        to_watch = os.path.join(self.queue_path, str('new'))
+        to_watch = os.path.join(self.queue_path, 'new')
+        # TODO: Do we need to get abspath() on to_watch? I (JAM)
+        # suspect watchers and symlinks don't play well
         self.watcher = hub.loop.stat(to_watch)
+
+    def close(self):
+        self._stop_watching()
 
     def _start_watching(self):
         assert self.watcher
@@ -212,7 +232,7 @@ class MailerWatcher(MailerProcess):
                 self.debouncer_count = 0
                 self._youve_got_mail()
 
-        if self.debouncer.active is False:
+        if self.debouncer.active is False: # XXX is False? Why not just 'not'?
             self.debouncer_count = 0
             self.debouncer.start(_timer_fired, self)
             logger.info('Processing mail queue. Queue processing paused for %i seconds',
@@ -225,8 +245,7 @@ class MailerWatcher(MailerProcess):
     def _stat_change_observed(self):
         # On certain file systems we will see stat changes
         # for access times which we don't care about. We really
-        # only care about modified times.`
-
+        # only care about modified times.
         if _stat_watcher_modified(self.watcher):
             logger.debug('Maildir watcher detected MailDir modification')
             self._youve_got_mail()
@@ -306,6 +325,15 @@ def run_console(): # pragma: no cover
                         level=logging.WARN)
     app = ConsoleApp()
     app.main()
+
+### Deprecated names
+#: Backwards compatibility alias
+#:
+#: .. deprecated:: 0.0.1
+#:    Use `LoopingMailerProcess`
+MailerProcess = LoopingMailerProcess # BWC
+
+deprecation.deprecated('MailerProcess', 'Use LoopingMailerProcess')
 
 if __name__ == "__main__":  # pragma NO COVERAGE
     run_console()
