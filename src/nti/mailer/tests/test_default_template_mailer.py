@@ -28,11 +28,12 @@ from pyramid_mailer.mailer import DummyMailer as _DummyMailer
 
 from repoze.sendmail.interfaces import IMailDelivery
 
-
 from zope import component
 
 from zope import interface
 
+from zope.i18n.interfaces import IUserPreferredLanguages
+from zope.i18nmessageid import MessageFactory
 from zope.publisher.interfaces.browser import IBrowserRequest
 
 from zope.security.interfaces import IPrincipal
@@ -47,6 +48,8 @@ from nti.mailer.interfaces import IEmailAddressable
 from nti.mailer.interfaces import EmailAddressablePrincipal
 from nti.mailer.interfaces import IPrincipalEmailValidation
 
+MSG_DOMAIN = u'nti.mailer.tests'
+_ = MessageFactory(MSG_DOMAIN)
 
 class ITestMailDelivery(IMailer, IMailDelivery):
     pass
@@ -66,15 +69,40 @@ class TestMailDelivery(_DummyMailer):
             message.html = payload[1].get_payload()
 
 
+@interface.implementer(IBrowserRequest)
+class Request(object):
+    response = None
+    application_url = 'foo'
+
+    def __init__(self):
+        self.annotations = {}
+        self.context = None
+
+    def get(self, key, default=None):
+        return default
+
+@interface.implementer(IUserPreferredLanguages)
+class TestPreferredLanguages(object):
+
+    def __init__(self, context):
+        self.context = context
+
+    def getPreferredLanguages(self):
+        return ('test', 'en')
+
 class PyramidMailerLayer(object):
 
     request = None
 
     @classmethod
     def setUp(cls):
+        import nti.mailer
+        from zope.configuration import xmlconfig
+        from zope.i18n.testmessagecatalog import TestMessageFallbackDomain
+
         cls.config = psetUp(registry=component.getGlobalSiteManager(),
                             request=cls.request,
-                            hook_zca=False)
+                            hook_zca=True)
         cls.config.setup_registry()
         cls.config.include('pyramid_chameleon')
         cls.config.include('pyramid_mako')
@@ -84,9 +112,22 @@ class PyramidMailerLayer(object):
         cls._mailer = mailer = TestMailDelivery()
         component.provideUtility(mailer, ITestMailDelivery)
 
+        # Provide a ITranslationDomain that knows about the 'test' language
+        cls.i18n_domain = TestMessageFallbackDomain(MSG_DOMAIN)
+
+        component.provideUtility(cls.i18n_domain, name=cls.i18n_domain.domain)
+        # Configure the default INegotiator
+        xmlconfig.file('configure.zcml', nti.mailer)
+        # Add an adapter for our Request to IUserPreferredLanguages, as used
+        # by the default INegotiator
+        component.provideAdapter(TestPreferredLanguages, (Request,))
+
     @classmethod
     def tearDown(cls):
-        ptearDown()
+        from zope.testing import cleanup
+        cleanup.cleanUp() # Clear the site manager
+        ptearDown() # unhook ZCA
+
         cls._mailer = None
 
     @classmethod
@@ -109,18 +150,7 @@ class TestEmailAddressablePrincipal(EmailAddressablePrincipal):
         return self.is_valid
 
 
-@interface.implementer(IBrowserRequest)
-class Request(object):
-    context = None
-    response = None
-    application_url = 'foo'
-
-    def __init__(self):
-        self.annotations = {}
-
-    def get(self, key, default=None):
-        return default
-
+_NotGiven = object()
 
 class TestEmail(unittest.TestCase):
 
@@ -207,7 +237,8 @@ class TestEmail(unittest.TestCase):
         # from pyramid_mailer.interfaces import IMailer
         # from zope import component
         # mailer = pyramid_mailer.Mailer.from_settings(
-        #    {'mail.queue_path': '/tmp/ds_maildir', 'mail.default_sender': 'no-reply@nextthought.com'
+        #    {'mail.queue_path': '/tmp/ds_maildir',
+        #     'mail.default_sender': 'no-reply@nextthought.com'
         #  } )
         # component.provideUtility( mailer, IMailer )
         # component.provideUtility(mailer.queue_delivery)
@@ -247,52 +278,95 @@ class TestEmail(unittest.TestCase):
         request.context = user
 
         msg = self._create_simple_email(request,
-                                        text_template_extension=".mak")
+                                        text_template_extension=".mak",
+                                        user=user)
         assert_that(msg, is_(not_none()))
 
     @fudge.patch('nti.mailer._verp._brand_name')
     def test_create_email_no_request_context(self, brand_name):
         brand_name.is_callable().returns(None)
 
-        @interface.implementer(IBrowserRequest)
-        class Request(object):
-            response = None
-            application_url = 'foo'
-
-            def __init__(self):
-                self.annotations = {}
-
-            def get(self, key, default=None):
-                return default
-
         request = Request()
+        del request.context
+        assert not hasattr(request, 'context')
         msg = self._create_simple_email(request,
                                         text_template_extension=".mak")
         assert_that(msg, is_(not_none()))
 
     def _create_simple_email(self,
-                 request,
-                 user=None,
-                 profile=None,
-                 text_template_extension=".txt"):
+                             request,
+                             user=None,
+                             profile=None,
+                             text_template_extension=".txt",
+                             subject=u'Hi there',
+                             context=_NotGiven):
 
         user = user or _User('the_user')
         profile = profile or _Profile(u'Mickey Mouse')
-
         token_url = 'url_to_verify_email'
-        msg = create_simple_html_text_email('tests/templates/test_new_user_created',
-                        subject='Hi there',
-                        recipients=['jason.madden@nextthought.com'],
-                        template_args={'user': user,
-                                       'profile': profile,
-                                       'context': user,
-                                       'href': token_url,
-                                       'support_email': 'support_email'},
-                        package='nti.mailer',
-                        text_template_extension=text_template_extension,
-                        request=request)
+
+        kwargs = {}
+        if context is not _NotGiven:
+            kwargs['context'] = context
+
+        msg = create_simple_html_text_email(
+            'tests/templates/test_new_user_created',
+            subject=subject,
+            recipients=['jason.madden@nextthought.com'],
+            template_args={'user': user,
+                           'profile': profile,
+                           'context': user,
+                           'href': token_url,
+                           'support_email': 'support_email'},
+            package='nti.mailer',
+            text_template_extension=text_template_extension,
+            request=request,
+            **kwargs)
         return msg
 
+    def test_create_email_localizes_subject(self):
+        import warnings
+
+        request = Request()
+        subject = _(u'Hi there')
+        # If we don't provide a `context` object, by default
+        # the ``translate`` function won't try to negotiate a language;
+        # creating the message works around that by using the `request` as the context.
+        msg = self._create_simple_email(request, subject=subject)
+        assert_that(msg.subject, is_(u'[[nti.mailer.tests][Hi there]]'))
+
+        # We can be explicit about that
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            msg = self._create_simple_email(request, subject=subject, context=request)
+        assert_that(msg.subject, is_(u'[[nti.mailer.tests][Hi there]]'))
+
+        # If we *do* provide a context, but there is no
+        # IUserPreferredLanguages available for the context, we
+        # fallback to using the request for translation. This can either
+        # be in the ``request.context``, or the ``context`` argument
+        request.context = self
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            msg = self._create_simple_email(request, subject=subject)
+        assert_that(msg.subject, is_(u'[[nti.mailer.tests][Hi there]]'))
+
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            msg = self._create_simple_email(request, subject=subject, context=request)
+        assert_that(msg.subject, is_(u'[[nti.mailer.tests][Hi there]]'))
+
+    def test_warning_about_mismatch_of_context(self):
+        # If we pass a context argument we get the warning because the
+        # function always puts ``context=User()`` in the arguments.
+        import warnings
+        with warnings.catch_warnings(record=True) as warns:
+            warnings.simplefilter('always')
+            self._create_simple_email(Request(), context=self)
+
+
+        self.assertEqual(len(warns), 1)
+        self.assertIn('Mismatch between the explicit', str(warns[0].message))
 
 class _User(object):
     def __init__(self, username):

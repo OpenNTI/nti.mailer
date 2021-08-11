@@ -10,6 +10,8 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import absolute_import
 
+import warnings
+
 from premailer import transform
 
 from pyramid.path import caller_package
@@ -27,6 +29,11 @@ from zope import component
 from zope import interface
 
 from zope.dottedname import resolve as dottedname
+# Because zope.i18n is a package, importing a name defined in its
+# __init__.py can be tricky.
+import zope.i18n
+from zope.i18n.interfaces import IUserPreferredLanguages
+
 
 from nti.mailer.interfaces import IVERP
 from nti.mailer.interfaces import IMailer
@@ -40,7 +47,7 @@ from nti.mailer.interfaces import IMailerTemplateArgsUtility
 from nti.mailer._compat import is_nonstr_iter
 
 logger = __import__('logging').getLogger(__name__)
-
+translate = zope.i18n.translate
 
 def _get_renderer_spec_and_package(base_template,
                                    extension,
@@ -125,6 +132,9 @@ def _as_recipient_list(recipients):
 
 as_recipient_list = _as_recipient_list
 
+_marker = object()
+
+
 def create_simple_html_text_email(base_template,
                                   subject='',
                                   request=None,
@@ -136,6 +146,7 @@ def create_simple_html_text_email(base_template,
                                   cc=(),
                                   bcc=(),
                                   text_template_extension='.txt',
+                                  context=_marker,
                                   _level=3):
     """
     Create a :class:`pyramid_mailer.message.Message` by rendering
@@ -149,23 +160,83 @@ def create_simple_html_text_email(base_template,
             asset spec, then the template will be interpreted relative to this
             package (and its templates/ subdirectory if no subdirectory is specified).
             If no package is given, the package of the caller of this function is used.
+    .. versionchanged:: 0.0.1
+        Now, if the *subject* is a :class:`zope.i18nmessageid.Message`, it will
+        be translated.
+    .. versionchanged:: 0.0.1
+        Added the *context* argument. If this argument is not supplied, the
+        value of ``request.context`` will be used. As a last resort, ``template_args['context']
+        will be used. (If both *context* or ``request.context`` and a template argument value
+        are given, they should be the same object.)
     """
 
     recipients = _as_recipient_list(recipients)
 
     if not recipients:
         logger.info("Refusing to attempt to send email with no recipients")
-        return
+        return None
     if not subject:
-        # Should the subject already be localized or should we do that?
         logger.info("Refusing to attempt to send email with no subject")
-        return
+        return None
 
     if request is None:
         request = get_current_request()
 
+    if context is _marker and request is not None:
+        try:
+            context = request.context
+        except AttributeError:
+            pass
+
+    template_args = template_args or {}
+    if context is _marker:
+        context = template_args.get('context', None)
+
+    assert context is not _marker
+    if 'context' not in template_args:
+        template_args['context'] = context
+
+    if (
+            'context' in template_args
+            and context is not None
+            and context is not template_args['context']
+    ):
+        warnings.warn(
+            "Mismatch between the explicit context and the template_args context. "
+            "In the future this might be an error. Currently, one will be used for translation "
+            "and one will be used in the template.",
+            FutureWarning,
+            stacklevel=3
+        )
+
     cc = _as_recipient_list(cc)
     bcc = _as_recipient_list(bcc)
+    # If the *context* is None, and no ``target_language`` is provided, the
+    # translate utility won't try to negotiate a language. In that case, we
+    # try to use the request as the context.
+    # See nti.app.pyramid_zope.i18n for details on negotiation: In summary,
+    # the default INegotiator from zope.i18n.negotiator adapts the context to
+    # IUserPreferredLanguages and then tries to find one of those in the catalog.
+    # We have registrations that turn the request into an IUserPreferredLanguages
+    # based on the Accept headers.
+    #
+    # (Determining the context is all subject to change.)
+    try:
+        subject = translate(subject, context=context if context is not None else request)
+    except TypeError as ex:
+        if (
+                context is not None
+                and len(ex.args) >= 3
+                and ex.args[2] == IUserPreferredLanguages
+        ):
+            # We tried to use the *context* argument, but there is no adapter for it.
+            # fallback to using the request.
+            logger.info("Failed to find adapter to translate the subject %r: %s",
+                        subject, ex)
+            subject = translate(subject, context=request)
+        else: # pragma: No cover
+            raise
+
 
     def make_args(extension):
         # Mako gets bitchy if 'context' comes in as an argument, but
@@ -175,10 +246,14 @@ def create_simple_html_text_email(base_template,
         the_context_name = 'nti_context' if extension == text_template_extension and text_template_extension != '.txt' else 'context'
         result = {}
         if request:
-            result[the_context_name] = getattr(request, 'context', None)
+            result[the_context_name] = context
         if template_args:
             result.update(template_args)
 
+        # Because the "correct" name for the context variable cannot be known
+        # by the ``IMailerTemplateArgsUtility``, they should not attempt to
+        # set it. Thus, we are always correct using our *context* value we
+        # discovered above.
         if the_context_name == 'nti_context' and 'context' in template_args:
             result[the_context_name] = template_args['context']
             del result['context']
@@ -274,12 +349,14 @@ def queue_simple_html_text_email(*args, **kwargs):
     if '_level' not in kwargs:
         kwargs['_level'] = 4
     message_factory = kwargs.pop('message_factory', create_simple_html_text_email)
+    if message_factory is not create_simple_html_text_email:
+        warnings.warn("The message_factory argument is deprecated.", FutureWarning, stacklevel=2)
     message = message_factory(*args, **kwargs)
     # There are cases where this will be none (bounced email handling, missing
     # subject - error?). In at least the bounced email case, we want to avoid
     # sending the email and erroring.
     if message is None:
-        return
+        return None
     return _send_pyramid_mailer_mail(message,
                                      recipients=kwargs.get('recipients'),
                                      request=kwargs.get('request'))
