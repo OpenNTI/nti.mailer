@@ -3,7 +3,6 @@
 """
 Utility functions having to do with sending emails.
 
-.. $Id$
 """
 
 from __future__ import division
@@ -11,8 +10,6 @@ from __future__ import print_function
 from __future__ import absolute_import
 
 from premailer import transform
-
-from pyramid.compat import is_nonstr_iter
 
 from pyramid.path import caller_package
 
@@ -38,6 +35,8 @@ from nti.mailer.interfaces import ITemplatedMailer
 from nti.mailer.interfaces import IEmailAddressable
 from nti.mailer.interfaces import IPrincipalEmailValidation
 from nti.mailer.interfaces import IMailerTemplateArgsUtility
+
+from nti.mailer._compat import is_nonstr_iter
 
 logger = __import__('logging').getLogger(__name__)
 
