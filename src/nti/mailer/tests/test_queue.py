@@ -92,16 +92,33 @@ class TestMailer(unittest.TestCase):
         self.assertEqual(prep_lines(sent_msg_str), prep_lines(MSG_STRING))
 
 
-class TestMailerWatcher(unittest.TestCase):
+class TestLoopingMailerProcess(unittest.TestCase):
 
     def setUp(self):
         self.dir = mkdtemp()
-        self.queue_dir = os.path.join(self.dir, str("queue"))
+        self.queue_dir = os.path.join(self.dir, "queue")
         self.delivery = QueuedMailDelivery(self.queue_dir)
         self.maildir = Maildir(self.queue_dir, True)
         self.mailer = _makeMailerStub()
+        self.queued_count = 0
 
-    def test_delivery(self):
+    def _getFUT(self):
+        from nti.mailer.queue import LoopingMailerProcess
+        class FUT(LoopingMailerProcess):
+            def _sleep_after_run(self, _seconds):
+                self._exit = True
+
+        return FUT
+
+    def _makeOne(self):
+        result = self._getFUT()(lambda: self.mailer, self.queue_dir)
+        self.addCleanup(result.close)
+        return result
+
+    def _runOnce(self, proc):
+        proc.run()
+
+    def _queue_two_messages(self):
         from email.message import Message
         from_addr = "foo@bar.foo"
         to_addr = "bar@foo.bar"
@@ -113,17 +130,52 @@ class TestMailerWatcher(unittest.TestCase):
         transaction.manager.begin()
         self.delivery.send(from_addr, to_addr, message)
         self.delivery.send(from_addr, to_addr, message)
+        self.queued_count += 2
         transaction.manager.commit()
 
         assert_that(tuple(self.maildir), has_length(2))
 
+    def test_delivery_messages_already_present(self):
+        self._queue_two_messages()
         def _mailer_factory():
             return self.mailer
 
-        watcher = MailerWatcher(_mailer_factory, self.queue_dir)
-        watcher.run(seconds=.1)
-
+        watcher = self._makeOne()
+        self._runOnce(watcher)
         assert_that(tuple(self.maildir), has_length(0))
+
+
+class TestMailerWatcher(TestLoopingMailerProcess):
+
+    def _getFUT(self):
+        return MailerWatcher
+
+    def _runOnce(self, proc):
+        proc.run(seconds=0.1)
+
+    def test_deliver_messages_come_while_waiting(self):
+        import platform
+        import gevent
+        # Next time we yield to the hub, this will get called.
+        gevent.spawn(self._queue_two_messages)
+
+        idle_time = 1
+        # But some systems are very slow to detect changes. Notably,
+        # libev on Darwin (macOS 10.15.7 on APFS) can take several
+        # seconds to observe the change.
+        if platform.system() == 'Darwin':
+            idle_time = 2
+            if 'libuv' not in str(gevent.config.loop):
+                idle_time = 7
+
+        watcher = self._makeOne()
+        assert_that(self.queued_count, is_(0))
+        watcher.run(seconds=idle_time)
+        assert_that(self.queued_count, is_(2))
+        assert_that(tuple(self.maildir), has_length(0))
+
+
+class TestFunctions(unittest.TestCase):
 
     def test_stat_modified_time(self):
         from nti.mailer.queue import _stat_modified_time
@@ -135,8 +187,9 @@ class TestMailerWatcher(unittest.TestCase):
         class Watcher2(object):
             class st_mtim(object):
                 tv_sec = 36
+                tv_nsec = 24
 
-        assert_that(_stat_modified_time(Watcher2()), is_(36))
+        assert_that(_stat_modified_time(Watcher2()), is_((36, 24)))
 
     def test_stat_watcher_modified(self):
         from nti.mailer.queue import _stat_watcher_modified
