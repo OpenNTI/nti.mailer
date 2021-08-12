@@ -36,6 +36,8 @@ from zope.i18n.interfaces import IUserPreferredLanguages
 from zope.i18nmessageid import MessageFactory
 from zope.publisher.interfaces.browser import IBrowserRequest
 
+from zope.testing.cleanup import CleanUp
+
 from zope.security.interfaces import IPrincipal
 
 from nti.app.pyramid_zope import z3c_zpt
@@ -135,6 +137,16 @@ class TestEmailAddressablePrincipal(EmailAddressablePrincipal):
 
     def is_valid_email(self):
         return self.is_valid
+
+
+class _User(object):
+    def __init__(self, username):
+        self.username = username
+
+
+class _Profile(object):
+    def __init__(self, realname):
+        self.realname = realname
 
 
 _NotGiven = object()
@@ -286,7 +298,8 @@ class TestEmail(unittest.TestCase):
                              profile=None,
                              text_template_extension=".txt",
                              subject=u'Hi there',
-                             context=_NotGiven):
+                             context=_NotGiven,
+                             reply_to=_NotGiven):
 
         user = user or _User('the_user')
         profile = profile or _Profile(u'Mickey Mouse')
@@ -295,6 +308,8 @@ class TestEmail(unittest.TestCase):
         kwargs = {}
         if context is not _NotGiven:
             kwargs['context'] = context
+        if reply_to is not _NotGiven:
+            kwargs['reply_to'] = reply_to
 
         msg = create_simple_html_text_email(
             'tests/templates/test_new_user_created',
@@ -359,11 +374,114 @@ class TestEmail(unittest.TestCase):
             self.assertEqual(len(warns), 1)
             self.assertIn('Mismatch between the explicit', str(warns[0].message))
 
-class _User(object):
-    def __init__(self, username):
-        self.username = username
+    def test_create_email_reply_to(self):
+        msg = self._create_simple_email(Request())
+        assert_that(msg.extra_headers, is_({}))
+        msg = self._create_simple_email(Request(), reply_to='foo@bar.com')
+        assert_that(msg.extra_headers, is_({'Reply-To': 'foo@bar.com'}))
 
+class TestFunctions(CleanUp, unittest.TestCase):
 
-class _Profile(object):
-    def __init__(self, realname):
-        self.realname = realname
+    def test_get_renderer_spec_and_package_no_colon_no_slash_no_package(self):
+        from nti.mailer import tests
+        from .._default_template_mailer import _get_renderer_spec_and_package
+
+        template, package = _get_renderer_spec_and_package('no_colon', '.txt',
+                                                           level=2)
+        assert_that(template, is_('templates/no_colon.txt'))
+        assert_that(package, is_(tests))
+
+    def test_get_renderer_spec_and_package_no_colon_no_package(self):
+        from nti.mailer import tests
+        from .._default_template_mailer import _get_renderer_spec_and_package
+
+        template, package = _get_renderer_spec_and_package('subdir/no_colon', '.txt',
+                                                           level=2)
+        assert_that(template, is_('subdir/no_colon.txt'))
+        assert_that(package, is_(tests))
+
+    @fudge.patch('nti.mailer._default_template_mailer.get_renderer')
+    def test__get_renderer(self, fake_get_renderer):
+        from nti.mailer import tests
+        from .._default_template_mailer import _get_renderer
+        fake_get_renderer.expects_call().calls(lambda *args, **kwargs: (args, kwargs))
+
+        args, kwargs = _get_renderer('no_colon', '.txt', level=2)
+        assert_that(args, is_(('templates/no_colon.txt',)))
+        assert_that(kwargs, is_({'package': tests}))
+
+    @fudge.patch('nti.mailer._default_template_mailer._get_renderer')
+    def test_do_html_text_templates_exist(self, fake__get_renderer):
+        from .._default_template_mailer import do_html_text_templates_exist
+        class MyException(Exception):
+            pass
+
+        def _get_renderer(base_template, extension, package=None, level=3):
+            if extension in ('.pt', '.good'):
+                return
+            if extension == '.mako':
+                # Unexpected case should propagate
+                raise MyException
+            # Expected case should return false.
+            raise ValueError
+        fake__get_renderer.expects_call().calls(_get_renderer)
+        # This will raise ValueError on the second one
+        result = do_html_text_templates_exist('base_template')
+        self.assertFalse(result)
+
+        with self.assertRaises(MyException):
+            do_html_text_templates_exist('base_template', '.mako')
+
+        result = do_html_text_templates_exist('base_template', '.good')
+        self.assertTrue(result)
+
+    def test_create_no_subject(self):
+        result = create_simple_html_text_email(
+            'base_template',
+            subject=None,
+            recipients=('foo@bar.com')
+        )
+        assert_that(result, is_(none()))
+
+    def test__make_template_args_calls_all_IMailerTemplateArgsUtility(self):
+        from ..interfaces import IMailerTemplateArgsUtility
+        from .._default_template_mailer import _make_template_args
+        the_request = object()
+
+        # Note that we have to use different keys, because
+        # the order in which these are called is not specified
+        class A(object):
+            def get_template_args(self, request):
+                assert request is the_request
+                return {'A': 1}
+
+        class B(object):
+            def get_template_args(self, request):
+                assert request is the_request
+                return {'B': 2}
+
+        # unnamed
+        component.provideUtility(A(), IMailerTemplateArgsUtility)
+        # named
+        component.provideUtility(B(), IMailerTemplateArgsUtility, u'B')
+
+        template_args = {"C": 3}
+        template_args_copy = template_args.copy()
+        result = _make_template_args(
+            the_request,
+            self,
+            '.txt',
+            '.txt',
+            template_args
+        )
+
+        # Got a new instance
+        self.assertIsNot(result, template_args)
+        # template args was left unchanged
+        assert_that(template_args, is_(template_args_copy))
+        assert_that(result, is_({
+            'context': self,
+            'A': 1,
+            'B': 2,
+            'C': 3
+        }))

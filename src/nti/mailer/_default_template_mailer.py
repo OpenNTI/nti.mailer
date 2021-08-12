@@ -134,6 +134,37 @@ as_recipient_list = _as_recipient_list
 
 _marker = object()
 
+def _make_template_args(
+        request,
+        context,
+        extension,
+        text_template_extension,
+        existing_template_args
+):
+    # Mako gets bitchy if 'context' comes in as an argument, but
+    # that's what Chameleon wants. To simplify things, we handle that
+    # for our callers. They just want to use 'context'.
+    # This should be fixed with 1.0a2
+    the_context_name = (
+        'nti_context'
+        if extension == text_template_extension and text_template_extension != '.txt'
+        else 'context'
+    )
+    result = {}
+    result[the_context_name] = context
+    result.update(existing_template_args)
+
+    # Because the "correct" name for the context variable cannot be known
+    # by the ``IMailerTemplateArgsUtility``, they should not attempt to
+    # set it. Thus, we are always correct using our *context* value we
+    # discovered above, except in the mismatch case.
+    if the_context_name == 'nti_context' and 'context' in existing_template_args:
+        result[the_context_name] = existing_template_args['context']
+        del result['context']
+    for args_utility in component.getAllUtilitiesRegisteredFor(IMailerTemplateArgsUtility):
+        result.update(args_utility.get_template_args(request))
+    return result
+
 
 def create_simple_html_text_email(base_template,
                                   subject='',
@@ -185,8 +216,7 @@ def create_simple_html_text_email(base_template,
         logger.info("Refusing to attempt to send email with no subject")
         return None
 
-    if request is None:
-        request = get_current_request()
+    request = request if request is not None else get_current_request()
 
     if context is _marker and request is not None:
         try:
@@ -199,8 +229,7 @@ def create_simple_html_text_email(base_template,
         context = template_args.get('context', None)
 
     assert context is not _marker
-    if 'context' not in template_args:
-        template_args['context'] = context
+    template_args.setdefault('context', context)
 
     if (
             'context' in template_args
@@ -239,32 +268,12 @@ def create_simple_html_text_email(base_template,
             logger.info("Failed to find adapter to translate the subject %r: %s",
                         subject, ex)
             subject = translate(subject, context=request)
-        else: # pragma: No cover
+        else: # pragma: no cover
             raise
 
-
-    def make_args(extension):
-        # Mako gets bitchy if 'context' comes in as an argument, but
-        # that's what Chameleon wants. To simplify things, we handle that
-        # for our callers. They just want to use 'context'.
-        # This should be fixed with 1.0a2
-        the_context_name = 'nti_context' if extension == text_template_extension and text_template_extension != '.txt' else 'context'
-        result = {}
-        result[the_context_name] = context
-        result.update(template_args)
-
-        # Because the "correct" name for the context variable cannot be known
-        # by the ``IMailerTemplateArgsUtility``, they should not attempt to
-        # set it. Thus, we are always correct using our *context* value we
-        # discovered above, except in the mismatch case.
-        if the_context_name == 'nti_context' and 'context' in template_args:
-            result[the_context_name] = template_args['context']
-            del result['context']
-        for args_utility in component.getAllUtilitiesRegisteredFor(IMailerTemplateArgsUtility):
-            result.update(args_utility.get_template_args(request))
-        return result
-
     def do_render(pkg):
+        # XXX: Factor this out to a testable function.
+        # The primary difficulty is the assumed `level` parameter.
         specs_and_packages = [_get_renderer_spec_and_package(base_template,
                                                              extension,
                                                              package=pkg,
@@ -272,20 +281,29 @@ def create_simple_html_text_email(base_template,
                               for extension in ('.pt', text_template_extension)]
 
         return [render(spec,
-                       make_args(extension),
+                       _make_template_args(request, context,
+                                           extension, text_template_extension,
+                                           template_args),
                        request=request,
                        package=pkg)
                 for spec, pkg, extension in specs_and_packages]
 
     try:
         html_body, text_body = do_render(package)
-    except ValueError as e:
+    except ValueError: # pragma: no cover
         # This is just to handle the case where the
         # site specifies a package, but wants to use
-        # a default template in some cases.
+        # a default template in some cases. This is kind of a
+        # scary case.
+        # XXX: Is it even used? It's not tested. We should probably
+        # raise a deprecation warning.
         if package is None:
-            raise e
+            raise
         # Ok, let's try to find the package.
+        logger.warning(
+            "Failed to find template %r for package %s; trying default",
+            base_template, package
+        )
         html_body, text_body = do_render(None)
 
     # Email clients do not handle CSS well unless it's inlined.
