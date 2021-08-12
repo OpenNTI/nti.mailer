@@ -192,10 +192,14 @@ def _stat_watcher_modified(watcher):
     # XXX: This can fail (false negative) if modifications are coming
     # in faster than the resolution of the mtime, which depends on the
     # gevent loop in use, as well as the filesystem and possibly
-    # the configuration.
+    # the configuration. This is easily observed on GitHub Actions
+    # with both watchers; our writing process has to sleep to allow
+    # the modification times to appear to change.
     # XXX: Moreover, the very act of processing the queue will probably cause
     # the watcher to fire. We should probably stop the watcher while
     # processing the queue.
+    print("Prev time", _stat_modified_time(watcher.prev))
+    print("Attr time", _stat_modified_time(watcher.attr))
     return _stat_modified_time(watcher.prev) != _stat_modified_time(watcher.attr)
 
 

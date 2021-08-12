@@ -192,8 +192,10 @@ class TestMailerWatcher(TestLoopingMailerProcess):
             self._queue_two_messages()
             # Sleep (blocking) in case our stat watcher has
             # very poor mtime resolution; we don't want a false
-            # negative in our detection.
-            time.sleep(0.5)
+            # negative in our detection. For libuv watchers,
+            # 0.5 seems to be enough. But for libev watchers on GHA,
+            # we need a full second.
+            time.sleep(1.0)
 
         gevent.spawn(q)
 
