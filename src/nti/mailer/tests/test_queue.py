@@ -189,13 +189,15 @@ class TestMailerWatcher(TestLoopingMailerProcess):
         import time
         # Next time we yield to the hub, this will get called.
         def q():
-            self._queue_two_messages()
-            # Sleep (blocking) in case our stat watcher has
+            # Sleep in case our stat watcher has
             # very poor mtime resolution; we don't want a false
             # negative in our detection. For libuv watchers,
             # 0.5 seems to be enough. But for libev watchers on GHA,
-            # we need a full second.
-            time.sleep(1.0)
+            # we need a full second. Do this ahead of time, non-blocking,
+            # so the stat watcher has a chance to get a before-time
+            gevent.sleep(1.0)
+            self._queue_two_messages()
+
 
         gevent.spawn(q)
 
