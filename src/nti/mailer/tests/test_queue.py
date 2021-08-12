@@ -186,7 +186,6 @@ class TestMailerWatcher(TestLoopingMailerProcess):
 
     def test_delivery_messages_arrive_while_waiting(self):
         import gevent
-        import time
         # Next time we yield to the hub, this will get called.
         def q():
             # Sleep in case our stat watcher has
@@ -195,7 +194,7 @@ class TestMailerWatcher(TestLoopingMailerProcess):
             # 0.5 seems to be enough. But for libev watchers on GHA,
             # we need a full second. Do this ahead of time, non-blocking,
             # so the stat watcher has a chance to get a before-time
-            gevent.sleep(1.0)
+            gevent.sleep(0.5)
             self._queue_two_messages()
 
 

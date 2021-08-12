@@ -198,8 +198,6 @@ def _stat_watcher_modified(watcher):
     # XXX: Moreover, the very act of processing the queue will probably cause
     # the watcher to fire. We should probably stop the watcher while
     # processing the queue.
-    print("Prev time", _stat_modified_time(watcher.prev))
-    print("Attr time", _stat_modified_time(watcher.attr))
     return _stat_modified_time(watcher.prev) != _stat_modified_time(watcher.attr)
 
 
@@ -227,8 +225,14 @@ class MailerWatcher(_AbstractMailerProcess):
 
     def close(self):
         self._stop_watching()
+        # It's critical to close() watchers before we destroy them
+        # (let them be GC'd). Otherwise, gevent can crash (mostly
+        # under libuv). See
+        # https://github.com/gevent/gevent/issues/1805
+        self.watcher.close()
         if self.debouncer is not None:
             self.debouncer.stop()
+            self.debouncer.close()
             self.debouncer = None
         self.debouncer_count = 0
 
@@ -273,6 +277,7 @@ class MailerWatcher(_AbstractMailerProcess):
 
     def _timer_fired(self):
         self.debouncer.stop()
+        self.debouncer.close()
         self.debouncer = None
         if self.debouncer_count > 0:
             self.debouncer_count = 0
