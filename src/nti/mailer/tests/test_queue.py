@@ -17,6 +17,7 @@ import email
 from hamcrest import assert_that
 from hamcrest import is_
 from hamcrest import has_length
+from hamcrest import none
 
 import fudge
 
@@ -41,8 +42,6 @@ class TestMailer(unittest.TestCase):
         self.message = email.message_from_string(MSG_STRING)
 
     def test_region(self):
-        from botocore.exceptions import EndpointConnectionError
-        from botocore.exceptions import NoCredentialsError
         # Defaults to us-east-1
         mailer = SESMailer()
 
@@ -52,7 +51,17 @@ class TestMailer(unittest.TestCase):
         assert_that(mailer.client.meta.endpoint_url, is_('https://email.us-west-2.amazonaws.com'))
 
         mailer = SESMailer('bad-region')
-        with self.assertRaises((EndpointConnectionError, NoCredentialsError)):
+        # XXX: Mocking this out because if you have .boto credentials
+        # set up, this actually tries to connect, which (a) takes
+        # awhile if there's no response and (b) could expose you to
+        # hijacking of credentials
+        class MyException(Exception):
+            pass
+        def call(*args):
+            raise MyException
+
+        mailer.client._make_api_call = call
+        with self.assertRaises(MyException):
             mailer.client.get_send_quota()
 
     def test_send(self):
@@ -137,9 +146,6 @@ class TestLoopingMailerProcess(unittest.TestCase):
 
     def test_delivery_messages_already_present(self):
         self._queue_two_messages()
-        def _mailer_factory():
-            return self.mailer
-
         watcher = self._makeOne()
         self._runOnce(watcher)
         assert_that(tuple(self.maildir), has_length(0))
@@ -153,6 +159,10 @@ class TestMailerWatcher(TestLoopingMailerProcess):
             # The timer that's started with this timeout will
             # keep the loop alive. So keep it short.
             max_process_frequency_seconds = 0.1
+            test_queue_proc_count = 0
+            test_timer_fired_count = 0
+            test_one_shot = True
+
             def _youve_got_mail(self):
                 super(FUT, self)._youve_got_mail()
                 # Deterministically close this down now so the event
@@ -160,13 +170,21 @@ class TestMailerWatcher(TestLoopingMailerProcess):
                 # processed something (this prevents hardcoding some
                 # timeout to wait for the watcher to fire) If this is
                 # messed up, the test will hang or fail.
-                self.close()
+                if self.test_one_shot:
+                    self.close()
+            def _do_process_queue(self):
+                self.test_queue_proc_count += 1
+                super(FUT, self)._do_process_queue()
+            def _timer_fired(self):
+                self.test_timer_fired_count += 1
+                super(FUT, self)._timer_fired()
+
         return FUT
 
     def _runOnce(self, proc):
         proc.run(seconds=0.1)
 
-    def test_deliver_messages_come_while_waiting(self):
+    def test_delivery_messages_arrive_while_waiting(self):
         import gevent
         import time
         # Next time we yield to the hub, this will get called.
@@ -188,7 +206,46 @@ class TestMailerWatcher(TestLoopingMailerProcess):
         assert_that(self.queued_count, is_(0))
         mailer.run()
         assert_that(self.queued_count, is_(2))
+        # Ran twice: Once for the call to run(), once for the
+        # watcher.
+        assert_that(mailer.test_queue_proc_count, is_(2))
         assert_that(tuple(self.maildir), has_length(0))
+        self.assertFalse(mailer.watcher.active)
+        assert_that(mailer.debouncer, is_(none()))
+        assert_that(mailer.debouncer_count, is_(0))
+
+    def test_debouncer_basic(self):
+        # This isn't a very functional test, it doesn't prove
+        # much beyond the code as written interacts roughly as
+        # expected.
+        import gevent
+        mailer = self._makeOne()
+        mailer.test_one_shot = False
+        mailer._youve_got_mail()
+        self.assertTrue(mailer.debouncer.active)
+        assert_that(mailer.debouncer_count, is_(0))
+        assert_that(mailer.test_queue_proc_count, is_(1))
+        orig_debouncer = mailer.debouncer
+
+        # Now imagine we get mail before the timer fires.
+        # It doesn't process the mail
+        mailer._youve_got_mail()
+        assert_that(mailer.debouncer_count, is_(1))
+        assert_that(mailer.test_queue_proc_count, is_(1))
+        assert_that(mailer.test_timer_fired_count, is_(0))
+        self.assertIs(mailer.debouncer, orig_debouncer)
+
+        # Now let the timer fire
+        while mailer.test_timer_fired_count == 0:
+            gevent.sleep(0.01)
+
+        # The debouncer count reset, as did the debouncer instance
+        assert_that(mailer.debouncer_count, is_(0))
+        self.assertIsNot(mailer.debouncer, orig_debouncer)
+        # The queue was processed again
+        assert_that(mailer.test_queue_proc_count, is_(2))
+        assert_that(mailer.test_timer_fired_count, is_(1))
+
 
 
 class TestFunctions(unittest.TestCase):
@@ -220,6 +277,17 @@ class TestFunctions(unittest.TestCase):
         Watcher.prev.st_mtime = 36
         self.assertTrue(_stat_watcher_modified(Watcher()))
 
+    def test_log_level_for_verbosity(self):
+        import logging
+        from nti.mailer.queue import _log_level_for_verbosity as FUT
+        assert_that(FUT(-1), is_(logging.ERROR))
+        assert_that(FUT(0), is_(logging.ERROR))
+        assert_that(FUT(1), is_(logging.WARN))
+        assert_that(FUT(2), is_(logging.INFO))
+        assert_that(FUT(3), is_(logging.DEBUG))
+        assert_that(FUT(4), is_(logging.DEBUG))
+        assert_that(FUT(5), is_(logging.DEBUG))
+        assert_that(FUT(6), is_(logging.DEBUG))
 
 class TestConsoleApp(unittest.TestCase):
 
