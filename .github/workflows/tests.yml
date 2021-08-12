@@ -47,7 +47,7 @@ jobs:
       run: |
         coverage run -m zope.testrunner --test-path=src  --auto-color -vvv
         coverage run -a -m sphinx -b doctest -d docs/_build/doctrees docs docs/_build/doctests
-        coverage report -i --fail-under=95
+        coverage report -i --fail-under=100
     - name: Test Without Coverage
       if: startsWith(matrix.python-version, 'pypy')
       run: |

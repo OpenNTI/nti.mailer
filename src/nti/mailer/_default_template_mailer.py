@@ -46,8 +46,25 @@ from nti.mailer.interfaces import IMailerTemplateArgsUtility
 
 from nti.mailer._compat import is_nonstr_iter
 
+from nti.mailer import _verp as default_verp
+
 logger = __import__('logging').getLogger(__name__)
 translate = zope.i18n.translate
+
+@interface.implementer(IMailerPolicy)
+class _DefaultMailerPolicy(object):
+    """
+    Returns the default answers we want to use if there is
+    no component implementing IMailerPolicy that can be found.
+    """
+
+    def get_default_sender(self):
+        """There is no default sender."""
+        return None
+
+
+default_mailer_policy = _DefaultMailerPolicy()
+
 
 def _get_renderer_spec_and_package(base_template,
                                    extension,
@@ -378,36 +395,13 @@ def queue_simple_html_text_email(*args, **kwargs):
     # sending the email and erroring.
     if message is None:
         return None
-    return _send_pyramid_mailer_mail(message,
-                                     recipients=kwargs.get('recipients'),
-                                     request=kwargs.get('request'))
-
-
-def _send_pyramid_mailer_mail(message, recipients=None, request=None):
-    """
-    Given a :class:`pyramid_mailer.message.Message`, transactionally deliver
-    it to the queue.
-
-    :return: The :class:`pyramid_mailer.message.Message` we sent.
-    """
-    # The pyramid_mailer.Message class is slightly nicer than the
-    # email package messages, if much less powerful. However, it makes the
-    # mistake of using different methods for send vs send_to_queue.
-    # It is built of top of repoze.sendmail and an IMailer contains two instances
-    # of repoze.sendmail.interfaces.IMailDelivery, one for queue and one
-    # for immediate, and those objects do the real work and also have a consistent
-    # interfaces. It's easy to change the pyramid_mail message into a email
-    # message
-    _send_mail(pyramid_mail_message=message,
-               recipients=recipients, request=request)
-    return message
+    return _send_mail(message,
+                      recipients=kwargs.get('recipients', ()),
+                      request=kwargs.get('request'))
 
 
 def _compute_from(*args, **kwargs):
-    verp = component.queryUtility(IVERP)
-    if verp is None:
-        from . import _verp
-        verp = _verp
+    verp = component.queryUtility(IVERP, default=default_verp)
     return verp.verp_from_recipients(*args, **kwargs)
 
 
@@ -416,25 +410,23 @@ def _get_from_address(pyramid_mail_message, recipients, request):
     Get a valid `From`/`Sender`/`Return-Path` address. This field is required and
     must be from a verified email address (e.g. @nextthought.com).
     """
-    pyramidmailer = component.queryUtility(IMailer)
-    if request is None:
-        request = get_current_request()
-
     fromaddr = getattr(pyramid_mail_message, 'sender', None)
 
     if not fromaddr:
         # Can we get a site policy for the current site?
         # It would be the unnamed IComponents
-        policy = component.queryUtility(IMailerPolicy)
-        if policy:
-            fromaddr = policy.get_default_sender()
+        policy = component.queryUtility(IMailerPolicy, default=default_mailer_policy)
+        fromaddr = policy.get_default_sender()
     if not fromaddr:
+        pyramidmailer = component.queryUtility(IMailer)
         fromaddr = getattr(pyramidmailer, 'default_sender', None)
 
     if not fromaddr:
         raise RuntimeError("No one to send mail from")
 
-    result = _compute_from(fromaddr, recipients, request)
+    result = _compute_from(fromaddr,
+                           recipients,
+                           request if request is not None else get_current_request())
     return result
 
 
@@ -465,11 +457,27 @@ def _pyramid_message_to_message(pyramid_mail_message, recipients, request):
 
 def _send_mail(pyramid_mail_message=None, recipients=(), request=None):
     """
-    Sends a message transactionally.
+    Given a :class:`pyramid_mailer.message.Message`, transactionally deliver
+    it to the queue.
+
+    :return: The :class:`pyramid_mailer.message.Message` we sent.
     """
+    # The pyramid_mailer.Message class is slightly nicer than the
+    # email package messages, if much less powerful. However, it makes the
+    # mistake of using different methods for send vs send_to_queue.
+    # It is built of top of repoze.sendmail and an IMailer contains two instances
+    # of repoze.sendmail.interfaces.IMailDelivery, one for queue and one
+    # for immediate, and those objects do the real work and also have a consistent
+    # interfaces. It's easy to change the pyramid_mail message into a email
+    # message
     assert pyramid_mail_message is not None
     pyramidmailer = component.queryUtility(IMailer)
 
+    # XXX: We'd like to call this only on the one branch
+    # that actually needs it, but sadly it has a side-effect of
+    # mutating the ``pyramid_mail_message`` in place.
+    # This isn't a very cheap operation, so hopefully the first branch
+    # is the common one.
     message = _pyramid_message_to_message(
         pyramid_mail_message, recipients, request
     )
@@ -484,6 +492,6 @@ def _send_mail(pyramid_mail_message=None, recipients=(), request=None):
         pyramidmailer.send_to_queue(pyramid_mail_message)
     else:
         raise RuntimeError("No way to deliver message")
-
+    return pyramid_mail_message
 
 interface.moduleProvides(ITemplatedMailer)

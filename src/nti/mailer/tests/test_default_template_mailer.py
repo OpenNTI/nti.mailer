@@ -380,6 +380,7 @@ class TestEmail(unittest.TestCase):
         msg = self._create_simple_email(Request(), reply_to='foo@bar.com')
         assert_that(msg.extra_headers, is_({'Reply-To': 'foo@bar.com'}))
 
+
 class TestFunctions(CleanUp, unittest.TestCase):
 
     def test_get_renderer_spec_and_package_no_colon_no_slash_no_package(self):
@@ -485,3 +486,133 @@ class TestFunctions(CleanUp, unittest.TestCase):
             'B': 2,
             'C': 3
         }))
+
+    def test__get_from_address_not_found(self):
+        from .._default_template_mailer import _get_from_address
+
+        with self.assertRaises(RuntimeError) as exc:
+            _get_from_address(pyramid_mail_message=None, recipients=(), request=None)
+
+        assert_that(exc.exception.args, is_(('No one to send mail from',)))
+
+    def test__send_mail_with_IMailDelivery(self):
+        from .._default_template_mailer import _send_mail
+
+        class MailDelivery(object):
+            sender = to = email_message = None
+            def send(self, *args):
+                self.sender, self.to, self.email_message = args
+
+        class MockPyramidMailMessage(object):
+            sender = 'from@nextthought.com'
+            send_to = 'to@nextthought.com'
+            email_message = object()
+
+            def to_message(self):
+                return self.email_message
+
+        delivery = MailDelivery()
+        component.provideUtility(delivery, IMailDelivery)
+
+        _send_mail(MockPyramidMailMessage())
+
+        # Verp gets applied to the sender, which inserts a default
+        # realname if there is no IMailerPolicy
+        self.assertEqual(delivery.sender, 'NextThought <%s>' % MockPyramidMailMessage.sender)
+        self.assertIs(delivery.to, MockPyramidMailMessage.send_to)
+        self.assertIs(delivery.email_message, MockPyramidMailMessage.email_message)
+
+        # If there is no IMailDelivery, but the IMailer has a `queue_delivery`,
+        # it gets used instead.
+        result = component.getSiteManager().unregisterUtility(delivery, IMailDelivery)
+        self.assertTrue(result)
+
+        class Mailer(object):
+            def __init__(self):
+                self.queue_delivery = MailDelivery()
+
+        mailer = Mailer()
+        delivery = mailer.queue_delivery
+        component.provideUtility(mailer, IMailer)
+
+        _send_mail(MockPyramidMailMessage())
+        self.assertEqual(delivery.sender, 'NextThought <%s>' % MockPyramidMailMessage.sender)
+        self.assertIs(delivery.to, MockPyramidMailMessage.send_to)
+        self.assertIs(delivery.email_message, MockPyramidMailMessage.email_message)
+
+    def test__send_mail_with_IMailer(self):
+        from .._default_template_mailer import _send_mail
+
+        class Mailer(object):
+            msg = None
+            def send_to_queue(self, msg):
+                self.msg = msg
+
+        mailer = Mailer()
+        component.provideUtility(mailer, IMailer)
+
+        # We don't need to utilize much of this at all, but
+        # the 'sender' does get mutated.
+        class MockPyramidMailMessage(object):
+            sender = 'from@nextthought.com'
+            email_message = object()
+
+            def to_message(self):
+                return self.email_message
+
+        pyramid_mail_message = MockPyramidMailMessage()
+        _send_mail(pyramid_mail_message)
+
+        assert_that(mailer.msg, is_(pyramid_mail_message))
+        assert_that(pyramid_mail_message.sender, is_(
+            'NextThought <%s>' % MockPyramidMailMessage.sender))
+
+    def test__send_mail_with_nothing(self):
+        from .._default_template_mailer import _send_mail
+        class MockPyramidMailMessage(object):
+            sender = 'from@nextthought.com'
+
+            def to_message(self):
+                return 42
+
+        # The sender still gets mutated...
+        pyramid_mail_message = MockPyramidMailMessage()
+        with self.assertRaises(RuntimeError) as exc:
+            _send_mail(pyramid_mail_message)
+
+        assert_that(exc.exception.args, is_(('No way to deliver message',)))
+        assert_that(pyramid_mail_message.sender, is_(
+            'NextThought <%s>' % MockPyramidMailMessage.sender))
+
+    def test_queue_simple_html_text_email_message_factory_deprecated(self):
+        # The message_factory is deprecated.
+        import warnings
+        from .._default_template_mailer import queue_simple_html_text_email
+
+        class MockPyramidMailMessage(object):
+            sender = 'from@nextthought.com'
+            def to_message(self):
+                return self
+
+        def message_factory(*_args, **_kwargs):
+            return MockPyramidMailMessage()
+
+        with warnings.catch_warnings(record=True) as warns:
+            warnings.simplefilter('always')
+            with self.assertRaises(RuntimeError) as exc:
+                queue_simple_html_text_email(message_factory=message_factory)
+
+        assert_that(exc.exception.args, is_(('No way to deliver message',)))
+        self.assertEqual(len(warns), 1)
+        assert_that(warns[0].message.args,
+                    is_(('The message_factory argument is deprecated.',)))
+
+    def test_queue_simple_html_text_email_message_factory_return_none(self):
+        import warnings
+        from .._default_template_mailer import queue_simple_html_text_email
+
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            result = queue_simple_html_text_email(message_factory=lambda *_args, **_kw: None)
+
+        assert_that(result, is_(none()))
