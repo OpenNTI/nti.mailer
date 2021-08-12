@@ -10,6 +10,7 @@ env:
   GEVENT_LOOP: libuv
   PYTHONDEVMODE: 1
   PYTHONUNBUFFERED: 1
+  PYTHONFAULTHANDLER: 1
 
 
 jobs:
@@ -40,16 +41,17 @@ jobs:
         python -m pip install -U pip setuptools wheel
         python -m pip install -U coverage
         python -m pip install -U -e ".[test,docs]"
+        python -m pip install -q -U 'faulthandler; python_version == "2.7" and platform_python_implementation == "CPython"'
     - name: Test With Coverage
       if: matrix.python-version != 'pypy2' && matrix.python-version != 'pypy3'
       run: |
-        coverage run -m zope.testrunner --test-path=src  --auto-color -v
+        coverage run -m zope.testrunner --test-path=src  --auto-color -vvv
         coverage run -a -m sphinx -b doctest -d docs/_build/doctrees docs docs/_build/doctests
         coverage report -i --fail-under=95
     - name: Test Without Coverage
       if: startsWith(matrix.python-version, 'pypy')
       run: |
-        python -m zope.testrunner --test-path=src  --auto-color --auto-progress
+        python -m zope.testrunner --test-path=src  --auto-color -vvv
         python -m sphinx -b doctest -d docs/_build/doctrees docs docs/_build/doctests
     - name: Submit to Coveralls
       # This is a container action, which only runs on Linux.

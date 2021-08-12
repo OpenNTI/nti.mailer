@@ -152,14 +152,20 @@ def create_simple_html_text_email(base_template,
     Create a :class:`pyramid_mailer.message.Message` by rendering
     the pair of templates to create a text and html part.
 
-    :keyword text_template_extension: The filename extension for the plain text template. Valid values
-            are ".txt" for Chameleon templates (this is the default and preferred version) and ".mak" for
-            Mako templates. Note that if you use Mako, the usual ``context`` argument is renamed to ``nti_context``,
-            as ``context`` is a reserved word in Mako.
-    :keyword package: If given, and the template is not an absolute
-            asset spec, then the template will be interpreted relative to this
-            package (and its templates/ subdirectory if no subdirectory is specified).
-            If no package is given, the package of the caller of this function is used.
+    :keyword str text_template_extension:
+        The filename extension for the plain text template. Valid
+        values are ".txt" for Chameleon templates (this is the default
+        and preferred version) and ".mak" for Mako templates. Note
+        that if you use Mako, the usual ``context`` argument is
+        renamed to ``nti_context``, as ``context`` is a reserved word
+        in Mako.
+    :keyword package:
+        If given, and the template is not an absolute asset spec, then
+        the template will be interpreted relative to this package (and
+        its templates/ subdirectory if no subdirectory is specified).
+        If no package is given, the package of the caller of this
+        function is used.
+
     .. versionchanged:: 0.0.1
         Now, if the *subject* is a :class:`zope.i18nmessageid.Message`, it will
         be translated.
