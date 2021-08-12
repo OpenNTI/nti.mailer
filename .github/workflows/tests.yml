@@ -6,8 +6,9 @@ env:
   PYTHONHASHSEED: 1042466059
   ZOPE_INTERFACE_STRICT_IRO: 1
   # The libuv loop has much better behaved stat
-  # watchers
-  GEVENT_LOOP: libuv
+  # watchers (they respond faster), though they tend
+  # to lead to crashes. This needs debugged in gevent.
+  #GEVENT_LOOP: libuv
   PYTHONDEVMODE: 1
   PYTHONUNBUFFERED: 1
   PYTHONFAULTHANDLER: 1
