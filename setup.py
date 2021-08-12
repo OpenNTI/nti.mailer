@@ -26,7 +26,7 @@ def _read(fname):
 
 setup(
     name='nti.mailer',
-    version="1.0.0.dev0",
+    version="0.0.1a1",
     author='Josh Zuech',
     author_email='josh.zuech@nextthought.com',
     description="NTI mailer",
