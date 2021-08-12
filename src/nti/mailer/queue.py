@@ -193,6 +193,9 @@ def _stat_watcher_modified(watcher):
     # in faster than the resolution of the mtime, which depends on the
     # gevent loop in use, as well as the filesystem and possibly
     # the configuration.
+    # XXX: Moreover, the very act of processing the queue will probably cause
+    # the watcher to fire. We should probably stop the watcher while
+    # processing the queue.
     return _stat_modified_time(watcher.prev) != _stat_modified_time(watcher.attr)
 
 
@@ -220,6 +223,10 @@ class MailerWatcher(_AbstractMailerProcess):
 
     def close(self):
         self._stop_watching()
+        if self.debouncer is not None:
+            self.debouncer.stop()
+            self.debouncer = None
+        self.debouncer_count = 0
 
     def _start_watching(self):
         assert self.watcher
@@ -233,24 +240,18 @@ class MailerWatcher(_AbstractMailerProcess):
 
     def _youve_got_mail(self):
         # We've detected we have mail. We want to debounce
-        # this so we aren't going crazy. Process the queue at most ever
+        # this so we aren't going crazy. Process the queue at most every
         # self.max_process_frequency_seconds
         # We use a gevent timer to accomplish this.
-
+        # XXX: This logic seems complex. Can it be simplified to accomplish the
+        # same thing?
         hub = gevent.get_hub()
         if self.debouncer is None:
             self.debouncer = hub.loop.timer(self.max_process_frequency_seconds)
 
-        def _timer_fired(self):
-            self.debouncer.stop()
-            self.debouncer = None
-            if self.debouncer_count > 0:
-                self.debouncer_count = 0
-                self._youve_got_mail()
-
         if self.debouncer.active is False: # XXX is False? Why not just 'not'?
             self.debouncer_count = 0
-            self.debouncer.start(_timer_fired, self)
+            self.debouncer.start(self._timer_fired)
             logger.info('Processing mail queue. Queue processing paused for %i seconds',
                         self.max_process_frequency_seconds)
             self._do_process_queue()
@@ -266,6 +267,13 @@ class MailerWatcher(_AbstractMailerProcess):
             logger.debug('Maildir watcher detected MailDir modification')
             self._youve_got_mail()
 
+    def _timer_fired(self):
+        self.debouncer.stop()
+        self.debouncer = None
+        if self.debouncer_count > 0:
+            self.debouncer_count = 0
+            self._youve_got_mail()
+
     def run(self, seconds=None): # pylint:disable=arguments-differ
         # Process once initially in case we have things in the queue already
         self._do_process_queue()
@@ -274,10 +282,20 @@ class MailerWatcher(_AbstractMailerProcess):
         self._start_watching()
         gevent.get_hub().join(seconds)
 
-_LOG_LEVELS = [logging.ERROR, logging.WARN, logging.INFO, logging.DEBUG]
+_LOG_LEVELS = [
+    logging.ERROR,
+    logging.WARN,
+    logging.INFO,
+    logging.DEBUG
+]
 
 def _log_level_for_verbosity(verbosity=0):
-    return _LOG_LEVELS[min(max(verbosity, 0), len(_LOG_LEVELS) - 1)]
+    # clamp to the range.
+    # start at 0, no wraparound
+    verbosity = max(verbosity, 0)
+    # not past the end
+    verbosity = min(verbosity, len(_LOG_LEVELS) - 1)
+    return _LOG_LEVELS[verbosity]
 
 
 def run_process(): # pragma: no cover
