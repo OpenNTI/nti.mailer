@@ -366,7 +366,7 @@ class TestEmail(unittest.TestCase):
             warnings.simplefilter('always')
             self._create_simple_email(Request(), context=self)
 
-        if str is not bytes:
+        if str is not bytes: # pragma: no cover
             # There's a bug in the 'always' simple filter on Python 2:
             # It doesn't properly clear the stacklevel cache,
             # so if we've emitted this warning by calling self._create_simple_email
