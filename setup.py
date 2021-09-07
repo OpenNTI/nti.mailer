@@ -28,8 +28,8 @@ setup(
     name='nti.mailer',
     version="0.0.1a2.dev0",
     author='Josh Zuech',
-    author_email='josh.zuech@nextthought.com',
-    description="NTI mailer",
+    author_email='open-source@nextthought.com',
+    description="Integrates pyramid_mailer and repoze.sendmail with Amazon SES.",
     long_description=(
         _read('README.rst')
         + '\n\n'
@@ -42,6 +42,7 @@ setup(
         'Intended Audience :: Developers',
         'Natural Language :: English',
         'Operating System :: OS Independent',
+        'Development Status :: 3 - Alpha',
         'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
@@ -85,6 +86,7 @@ setup(
         'zope.component',
         'zope.container',
         'zope.dottedname',
+        'zope.i18n',
         'zope.interface',
         'zope.intid',
         'zope.location',
