@@ -17,10 +17,9 @@ import email
 from hamcrest import assert_that
 from hamcrest import is_
 from hamcrest import has_length
+from hamcrest import none
 
 import fudge
-
-
 
 
 from repoze.sendmail.delivery import QueuedMailDelivery
@@ -43,8 +42,6 @@ class TestMailer(unittest.TestCase):
         self.message = email.message_from_string(MSG_STRING)
 
     def test_region(self):
-        from botocore.exceptions import EndpointConnectionError
-        from botocore.exceptions import NoCredentialsError
         # Defaults to us-east-1
         mailer = SESMailer()
 
@@ -54,7 +51,17 @@ class TestMailer(unittest.TestCase):
         assert_that(mailer.client.meta.endpoint_url, is_('https://email.us-west-2.amazonaws.com'))
 
         mailer = SESMailer('bad-region')
-        with self.assertRaises((EndpointConnectionError, NoCredentialsError)):
+        # XXX: Mocking this out because if you have .boto credentials
+        # set up, this actually tries to connect, which (a) takes
+        # awhile if there's no response and (b) could expose you to
+        # hijacking of credentials
+        class MyException(Exception):
+            pass
+        def call(*args):
+            raise MyException
+
+        mailer.client._make_api_call = call
+        with self.assertRaises(MyException):
             mailer.client.get_send_quota()
 
     def test_send(self):
@@ -71,10 +78,11 @@ class TestMailer(unittest.TestCase):
         mailer.send('from', ('to',), self.message)
 
         encoded_msg_sent = send_kwargs['RawMessage']['Data']
-        if not isinstance(encoded_msg_sent, str):
-            sent_msg_str = encoded_msg_sent.decode('ascii')
-        else:
-            sent_msg_str = encoded_msg_sent
+        sent_msg_str = (
+            encoded_msg_sent.decode('ascii')
+            if not isinstance(encoded_msg_sent, str)
+            else encoded_msg_sent
+        )
         # In order to get reasonable error messages, we want to do a line-wise
         # comparison. Moreover, Python 3 and Python 2 produce slightly different
         # line breaks and spacing. This is the case in headers: Python 3
@@ -93,16 +101,33 @@ class TestMailer(unittest.TestCase):
         self.assertEqual(prep_lines(sent_msg_str), prep_lines(MSG_STRING))
 
 
-class TestMailerWatcher(unittest.TestCase):
+class TestLoopingMailerProcess(unittest.TestCase):
 
     def setUp(self):
         self.dir = mkdtemp()
-        self.queue_dir = os.path.join(self.dir, str("queue"))
+        self.queue_dir = os.path.join(self.dir, "queue")
         self.delivery = QueuedMailDelivery(self.queue_dir)
         self.maildir = Maildir(self.queue_dir, True)
         self.mailer = _makeMailerStub()
+        self.queued_count = 0
 
-    def test_delivery(self):
+    def _getFUT(self):
+        from nti.mailer.queue import LoopingMailerProcess
+        class FUT(LoopingMailerProcess):
+            def _sleep_after_run(self, _seconds):
+                self._exit = True
+
+        return FUT
+
+    def _makeOne(self):
+        result = self._getFUT()(lambda: self.mailer, self.queue_dir)
+        self.addCleanup(result.close)
+        return result
+
+    def _runOnce(self, proc):
+        proc.run()
+
+    def _queue_two_messages(self):
         from email.message import Message
         from_addr = "foo@bar.foo"
         to_addr = "bar@foo.bar"
@@ -114,14 +139,164 @@ class TestMailerWatcher(unittest.TestCase):
         transaction.manager.begin()
         self.delivery.send(from_addr, to_addr, message)
         self.delivery.send(from_addr, to_addr, message)
+        self.queued_count += 2
         transaction.manager.commit()
 
         assert_that(tuple(self.maildir), has_length(2))
 
-        def _mailer_factory():
-            return self.mailer
-
-        watcher = MailerWatcher(_mailer_factory, self.queue_dir)
-        watcher.run(seconds=.1)
-
+    def test_delivery_messages_already_present(self):
+        self._queue_two_messages()
+        watcher = self._makeOne()
+        self._runOnce(watcher)
         assert_that(tuple(self.maildir), has_length(0))
+
+
+class TestMailerWatcher(TestLoopingMailerProcess):
+
+    def _getFUT(self):
+        # This makes a one-shot object
+        class FUT(MailerWatcher):
+            # The timer that's started with this timeout will
+            # keep the loop alive. So keep it short.
+            max_process_frequency_seconds = 0.1
+            test_queue_proc_count = 0
+            test_timer_fired_count = 0
+            test_one_shot = True
+
+            def _youve_got_mail(self):
+                super(FUT, self)._youve_got_mail()
+                # Deterministically close this down now so the event
+                # loop can exit, but only after we've actually
+                # processed something (this prevents hardcoding some
+                # timeout to wait for the watcher to fire) If this is
+                # messed up, the test will hang or fail.
+                if self.test_one_shot:
+                    self.close()
+            def _do_process_queue(self):
+                self.test_queue_proc_count += 1
+                super(FUT, self)._do_process_queue()
+            def _timer_fired(self):
+                self.test_timer_fired_count += 1
+                super(FUT, self)._timer_fired()
+
+        return FUT
+
+    def _runOnce(self, proc):
+        proc.run(seconds=0.1)
+
+    def test_delivery_messages_arrive_while_waiting(self):
+        import gevent
+        # Next time we yield to the hub, this will get called.
+        def q():
+            # Sleep in case our stat watcher has
+            # very poor mtime resolution; we don't want a false
+            # negative in our detection. For libuv watchers,
+            # 0.5 seems to be enough. But for libev watchers on GHA,
+            # we need a full second. Do this ahead of time, non-blocking,
+            # so the stat watcher has a chance to get a before-time
+            gevent.sleep(0.5)
+            self._queue_two_messages()
+
+
+        gevent.spawn(q)
+
+        # Some systems are very slow to detect changes. Notably,
+        # libev on Darwin (macOS 10.15.7 on APFS) can take several
+        # seconds to observe the change (5 -- 7); libuv finds it
+        # very quickly, usually.
+        mailer = self._makeOne()
+
+        assert_that(self.queued_count, is_(0))
+        mailer.run()
+        assert_that(self.queued_count, is_(2))
+        # Ran twice: Once for the call to run(), once for the
+        # watcher.
+        assert_that(mailer.test_queue_proc_count, is_(2))
+        assert_that(tuple(self.maildir), has_length(0))
+        self.assertFalse(mailer.watcher.active)
+        assert_that(mailer.debouncer, is_(none()))
+        assert_that(mailer.debouncer_count, is_(0))
+
+    def test_debouncer_basic(self):
+        # This isn't a very functional test, it doesn't prove
+        # much beyond the code as written interacts roughly as
+        # expected.
+        import gevent
+        mailer = self._makeOne()
+        mailer.test_one_shot = False
+        mailer._youve_got_mail()
+        self.assertTrue(mailer.debouncer.active)
+        assert_that(mailer.debouncer_count, is_(0))
+        assert_that(mailer.test_queue_proc_count, is_(1))
+        orig_debouncer = mailer.debouncer
+
+        # Now imagine we get mail before the timer fires.
+        # It doesn't process the mail
+        mailer._youve_got_mail()
+        assert_that(mailer.debouncer_count, is_(1))
+        assert_that(mailer.test_queue_proc_count, is_(1))
+        assert_that(mailer.test_timer_fired_count, is_(0))
+        self.assertIs(mailer.debouncer, orig_debouncer)
+
+        # Now let the timer fire
+        while mailer.test_timer_fired_count == 0:
+            gevent.sleep(0.01)
+
+        # The debouncer count reset, as did the debouncer instance
+        assert_that(mailer.debouncer_count, is_(0))
+        self.assertIsNot(mailer.debouncer, orig_debouncer)
+        # The queue was processed again
+        assert_that(mailer.test_queue_proc_count, is_(2))
+        assert_that(mailer.test_timer_fired_count, is_(1))
+
+
+
+class TestFunctions(unittest.TestCase):
+
+    def test_stat_modified_time(self):
+        from nti.mailer.queue import _stat_modified_time
+        class Watcher1(object):
+            st_mtime = 42
+
+        assert_that(_stat_modified_time(Watcher1()), is_(42))
+
+        class Watcher2(object):
+            class st_mtim(object):
+                tv_sec = 36
+                tv_nsec = 24
+
+        assert_that(_stat_modified_time(Watcher2()), is_((36, 24)))
+
+    def test_stat_watcher_modified(self):
+        from nti.mailer.queue import _stat_watcher_modified
+        class Watcher(object):
+            class prev(object):
+                st_mtime = 42
+            class attr(object):
+                st_mtime = 42
+
+        self.assertFalse(_stat_watcher_modified(Watcher()))
+
+        Watcher.prev.st_mtime = 36
+        self.assertTrue(_stat_watcher_modified(Watcher()))
+
+    def test_log_level_for_verbosity(self):
+        import logging
+        from nti.mailer.queue import _log_level_for_verbosity as FUT
+        assert_that(FUT(-1), is_(logging.ERROR))
+        assert_that(FUT(0), is_(logging.ERROR))
+        assert_that(FUT(1), is_(logging.WARN))
+        assert_that(FUT(2), is_(logging.INFO))
+        assert_that(FUT(3), is_(logging.DEBUG))
+        assert_that(FUT(4), is_(logging.DEBUG))
+        assert_that(FUT(5), is_(logging.DEBUG))
+        assert_that(FUT(6), is_(logging.DEBUG))
+
+class TestConsoleApp(unittest.TestCase):
+
+    def test_construct(self):
+        from nti.mailer.queue import ConsoleApp
+        import tempfile
+        args = ['console', tempfile.gettempdir()]
+        app = ConsoleApp(args)
+        assert_that(app.mailer, is_(SESMailer))

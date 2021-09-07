@@ -16,9 +16,9 @@ from hamcrest import assert_that
 
 import fudge
 
-
 from zope import component
 from zope import interface
+from zope.testing.cleanup import CleanUp
 
 from zc.displayname.interfaces import IDisplayNameGenerator
 
@@ -28,7 +28,6 @@ from nti.mailer._verp import verp_from_recipients
 from nti.mailer._verp import principal_ids_from_verp
 
 from nti.mailer.interfaces import EmailAddressablePrincipal
-
 
 def _make_displayname_adapter(display_name):
 
@@ -44,7 +43,7 @@ def _make_displayname_adapter(display_name):
     return StaticDisplayNameAdapter
 
 
-class TestVerp(unittest.TestCase):
+class TestVerp(CleanUp, unittest.TestCase):
 
     def test_pids_from_verp_email(self):
         fromaddr = 'no-reply+kaley.white%40nextthought.com.PFgX7A@nextthought.com'
@@ -66,7 +65,9 @@ class TestVerp(unittest.TestCase):
 
     @fudge.patch('nti.mailer._verp._get_default_sender',
                              'nti.mailer._verp._get_signer_secret')
-    def test_verp_from_recipients_in_site_uses_default_sender_realname(self, mock_find, mock_secret):
+    def test_verp_from_recipients_in_site_uses_default_sender_realname(self,
+                                                                       mock_find,
+                                                                       mock_secret):
         mock_find.is_callable().returns('Janux <janux@ou.edu>')
         mock_secret.is_callable().returns('abc123')
 
@@ -138,6 +139,7 @@ class TestVerp(unittest.TestCase):
         # If we have a IDisplayNameGenerator registered for the current site
         # we'll use that for the real name
         displayname_adapter = _make_displayname_adapter("Brand XYZ")
+
         with provide_adapter(displayname_adapter,
                              required=(object, object),
                              provided=IDisplayNameGenerator):
@@ -176,6 +178,39 @@ class TestVerp(unittest.TestCase):
 
         assert_that(name, is_('NextThought'))
         assert_that(email, is_('no-reply+foo.UGQXuA@nextthought.com'))
+
+    def test_get_signer_secret_from_policy(self):
+        from nti.mailer.interfaces import IMailerPolicy
+        from nti.mailer._verp import _get_signer_secret
+
+        class Policy(object):
+            def get_signer_secret(self):
+                return "42"
+
+        component.provideUtility(Policy(), IMailerPolicy)
+
+        self.assertEqual(_get_signer_secret(), "42")
+
+    def test_realname_from_recipients(self):
+        from nti.mailer._verp import realname_from_recipients
+        with self.assertRaises(ValueError) as exc:
+            realname_from_recipients('', ())
+
+        self.assertEqual(exc.exception.args[0], "Invalid fromaddr")
+
+    def test_principal_ids_from_verp_no_verp(self):
+        # No fromaddr
+        self.assertEqual(principal_ids_from_verp(None), ())
+        self.assertEqual(principal_ids_from_verp(''), ())
+        # No + in fromaddr
+        self.assertEqual(principal_ids_from_verp('me@me.com'), ())
+        # A +, but in the wrong place
+        self.assertEqual(principal_ids_from_verp('Me+Me <me@me.com>'), ())
+
+    def test_principal_ids_from_verp_missing_sep(self):
+        # Note the missing '.'
+        addr = 'no-reply+ThibergeVHsYRQ@alerts.nextthought.com'
+        self.assertEqual(principal_ids_from_verp(addr), ())
 
 
 @contextlib.contextmanager

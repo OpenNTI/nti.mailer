@@ -31,24 +31,10 @@ __all__ = (
 
 # pylint:disable=inherit-non-class,no-self-argument,no-method-argument
 
-try:
-    from pyramid_mailer.interfaces import IMailer
-except ImportError: # pragma: no cover
-    class IMailer(interface.Interface):
-        pass
-
-try:
-    from repoze.sendmail.interfaces import IMailDelivery
-except ImportError: # pragma: no cover
-    class IMailDelivery(interface.Interface):
-        transaction_manager = interface.Attribute(u"The transaction manager to use.")
-
-        def send(fromaddr, toaddrs, message):
-            pass
-
-
+from pyramid_mailer.interfaces import IMailer
+from repoze.sendmail.interfaces import IMailDelivery
 from nti.schema.field import TextLine
-# pylint:disable=I0011,E0213
+
 
 logger = __import__('logging').getLogger(__name__)
 
@@ -108,7 +94,7 @@ class EmailAddressablePrincipal(object):
         for name in 'title', 'description':
             prin_val = getattr(prin, name, None)
             if prin_val is not None:
-                setattr(self, str(name), prin_val)
+                setattr(self, name, prin_val)
 
     def __str__(self):
         return str('Principal(%s/%s)' % (self.id, self.email))

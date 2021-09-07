@@ -13,6 +13,8 @@
   ``ITemplatedMailer.queue_simple_html_text_email``. If you use this
   argument, please bring up your use-case in the issue tracker.
 
+- Reach 100% test coverage.
+
 0.0.1a1 (2021-08-12)
 ====================
 
