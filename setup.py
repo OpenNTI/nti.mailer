@@ -26,7 +26,7 @@ def _read(fname):
 
 setup(
     name='nti.mailer',
-    version="0.0.1a2.dev0",
+    version="0.0.1a2",
     author='Josh Zuech',
     author_email='open-source@nextthought.com',
     description="Integrates pyramid_mailer and repoze.sendmail with Amazon SES.",
