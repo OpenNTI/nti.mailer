@@ -37,8 +37,10 @@ jobs:
       run: |
         sudo apt-get install -y libxml2-dev libxslt-dev
     - name: Install dependencies
+      # Fudge needs 2to3 at install time, which went away in
+      # setuptools 58.
       run: |
-        python -m pip install -U pip setuptools wheel
+        python -m pip install -U pip "setuptools < 58" wheel
         python -m pip install -U coverage
         python -m pip install -U -e ".[test,docs]"
         python -m pip install -q -U 'faulthandler; python_version == "2.7" and platform_python_implementation == "CPython"'
