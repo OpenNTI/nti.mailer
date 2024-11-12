@@ -2,10 +2,11 @@
  Changes
 =========
 
-0.0.1a3 (unreleased)
+1.0.0 (unreleased)
 ====================
 
-- Nothing changed yet.
+- Drop support for Python < 3.10.
+- Use native namespace packages.
 
 
 0.0.1a2 (2021-09-07)

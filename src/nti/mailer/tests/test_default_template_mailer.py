@@ -6,8 +6,7 @@ from __future__ import print_function, absolute_import, division
 # disable: accessing protected members, too many methods
 # pylint: disable=W0212,R0904
 import unittest
-
-import fudge
+from unittest.mock import patch as Patch
 
 
 from hamcrest import is_
@@ -50,7 +49,7 @@ from nti.mailer.interfaces import IEmailAddressable
 from nti.mailer.interfaces import EmailAddressablePrincipal
 from nti.mailer.interfaces import IPrincipalEmailValidation
 
-MSG_DOMAIN = u'nti.mailer.tests'
+MSG_DOMAIN = 'nti.mailer.tests'
 _ = MessageFactory(MSG_DOMAIN)
 
 class ITestMailDelivery(IMailer, IMailDelivery):
@@ -131,8 +130,8 @@ class PyramidMailerLayer(object):
 @interface.implementer(IPrincipalEmailValidation)
 class TestEmailAddressablePrincipal(EmailAddressablePrincipal):
 
-    def __init__(self, user, is_valid=True, *args, **kwargs):
-        super(TestEmailAddressablePrincipal, self).__init__(user, *args, **kwargs)
+    def __init__(self, user, is_valid=True, *args, **kwargs): # pylint:disable=keyword-arg-before-vararg
+        super().__init__(user, *args, **kwargs)
         self.is_valid = is_valid
 
     def is_valid_email(self):
@@ -155,16 +154,16 @@ class TestEmail(unittest.TestCase):
 
     layer = PyramidMailerLayer
 
-    @fudge.patch('nti.mailer._verp._brand_name')
+    @Patch('nti.mailer._verp._brand_name', autospec=True)
     def test_create_mail_message_with_non_ascii_name_and_string_bcc(self, brand_name):
-        brand_name.is_callable().returns(None)
+        brand_name.return_value = None
 
         class User(object):
             username = 'the_user'
 
         class Profile(object):
             # Note the umlaut e
-            realname = u'Suzë Schwartz'
+            realname = 'Suzë Schwartz'
 
         user = User()
         profile = Profile()
@@ -200,9 +199,9 @@ class TestEmail(unittest.TestCase):
         #
         assert_that(msg, has_property('bcc', ['foo@bar.com']))
 
-    @fudge.patch('nti.mailer._verp._brand_name')
+    @Patch('nti.mailer._verp._brand_name', autospec=True)
     def test_create_email_with_verp(self, brand_name):
-        brand_name.is_callable().returns(None)
+        brand_name.return_value = None
 
         @interface.implementer(IPrincipal, IEmailAddressable)
         class User(object):
@@ -213,7 +212,7 @@ class TestEmail(unittest.TestCase):
             email = 'thomas.stockdale@nextthought.com'
 
         class Profile(object):
-            realname = u'Suzë Schwartz'
+            realname = 'Suzë Schwartz'
 
         user = User()
         profile = Profile()
@@ -268,9 +267,9 @@ class TestEmail(unittest.TestCase):
                             request=request)
         assert_that(msg, none())
 
-    @fudge.patch('nti.mailer._verp._brand_name')
+    @Patch('nti.mailer._verp._brand_name', autospec=True)
     def test_create_email_with_mako(self, brand_name):
-        brand_name.is_callable().returns(None)
+        brand_name.return_value = None
 
         user = _User('the_user')
         request = Request()
@@ -281,7 +280,7 @@ class TestEmail(unittest.TestCase):
                                         user=user)
         assert_that(msg, is_(not_none()))
 
-    @fudge.patch('nti.mailer._verp._brand_name')
+    @Patch('nti.mailer._verp._brand_name')
     def test_create_email_no_request_context(self, brand_name):
         brand_name.is_callable().returns(None)
 
@@ -294,15 +293,15 @@ class TestEmail(unittest.TestCase):
 
     def _create_simple_email(self,
                              request,
+                             *,
                              user=None,
                              profile=None,
                              text_template_extension=".txt",
-                             subject=u'Hi there',
+                             subject='Hi there',
                              context=_NotGiven,
                              reply_to=_NotGiven):
-
         user = user or _User('the_user')
-        profile = profile or _Profile(u'Mickey Mouse')
+        profile = profile or _Profile('Mickey Mouse')
         token_url = 'url_to_verify_email'
 
         kwargs = {}
@@ -330,18 +329,18 @@ class TestEmail(unittest.TestCase):
         import warnings
 
         request = Request()
-        subject = _(u'Hi there')
+        subject = _('Hi there')
         # If we don't provide a `context` object, by default
         # the ``translate`` function won't try to negotiate a language;
         # creating the message works around that by using the `request` as the context.
         msg = self._create_simple_email(request, subject=subject)
-        assert_that(msg.subject, is_(u'[[nti.mailer.tests][Hi there]]'))
+        assert_that(msg.subject, is_('[[nti.mailer.tests][Hi there]]'))
 
         # We can be explicit about that
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
             msg = self._create_simple_email(request, subject=subject, context=request)
-        assert_that(msg.subject, is_(u'[[nti.mailer.tests][Hi there]]'))
+        assert_that(msg.subject, is_('[[nti.mailer.tests][Hi there]]'))
 
         # If we *do* provide a context, but there is no
         # IUserPreferredLanguages available for the context, we
@@ -351,12 +350,12 @@ class TestEmail(unittest.TestCase):
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
             msg = self._create_simple_email(request, subject=subject)
-        assert_that(msg.subject, is_(u'[[nti.mailer.tests][Hi there]]'))
+        assert_that(msg.subject, is_('[[nti.mailer.tests][Hi there]]'))
 
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
             msg = self._create_simple_email(request, subject=subject, context=request)
-        assert_that(msg.subject, is_(u'[[nti.mailer.tests][Hi there]]'))
+        assert_that(msg.subject, is_('[[nti.mailer.tests][Hi there]]'))
 
     def test_warning_about_mismatch_of_context(self):
         # If we pass a context argument we get the warning because the
@@ -401,31 +400,31 @@ class TestFunctions(CleanUp, unittest.TestCase):
         assert_that(template, is_('subdir/no_colon.txt'))
         assert_that(package, is_(tests))
 
-    @fudge.patch('nti.mailer._default_template_mailer.get_renderer')
+    @Patch('nti.mailer._default_template_mailer.get_renderer')
     def test__get_renderer(self, fake_get_renderer):
         from nti.mailer import tests
         from .._default_template_mailer import _get_renderer
-        fake_get_renderer.expects_call().calls(lambda *args, **kwargs: (args, kwargs))
+        fake_get_renderer.side_effect = lambda *args, **kwargs: (args, kwargs)
 
         args, kwargs = _get_renderer('no_colon', '.txt', level=2)
         assert_that(args, is_(('templates/no_colon.txt',)))
         assert_that(kwargs, is_({'package': tests}))
 
-    @fudge.patch('nti.mailer._default_template_mailer._get_renderer')
+    @Patch('nti.mailer._default_template_mailer._get_renderer')
     def test_do_html_text_templates_exist(self, fake__get_renderer):
         from .._default_template_mailer import do_html_text_templates_exist
         class MyException(Exception):
             pass
 
-        def _get_renderer(base_template, extension, package=None, level=3):
-            if extension in ('.pt', '.good'):
+        def _get_renderer(base_template, extension, package=None, level=3): # pylint:disable=unused-argument
+            if extension in {'.pt', '.good'}:
                 return
             if extension == '.mako':
                 # Unexpected case should propagate
                 raise MyException
             # Expected case should return false.
             raise ValueError
-        fake__get_renderer.expects_call().calls(_get_renderer)
+        fake__get_renderer.side_effect = _get_renderer
         # This will raise ValueError on the second one
         result = do_html_text_templates_exist('base_template')
         self.assertFalse(result)
@@ -464,7 +463,7 @@ class TestFunctions(CleanUp, unittest.TestCase):
         # unnamed
         component.provideUtility(A(), IMailerTemplateArgsUtility)
         # named
-        component.provideUtility(B(), IMailerTemplateArgsUtility, u'B')
+        component.provideUtility(B(), IMailerTemplateArgsUtility, 'B')
 
         template_args = {"C": 3}
         template_args_copy = template_args.copy()

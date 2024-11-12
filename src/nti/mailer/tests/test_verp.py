@@ -9,12 +9,13 @@ from __future__ import absolute_import
 # pylint: disable=W0212,R0904
 import contextlib
 import unittest
+from unittest.mock import patch as Patch
+from unittest.mock import Mock
 
 from hamcrest import is_
 from hamcrest import contains_exactly as contains
 from hamcrest import assert_that
 
-import fudge
 
 from zope import component
 from zope import interface
@@ -63,13 +64,13 @@ class TestVerp(CleanUp, unittest.TestCase):
         pids = principal_ids_from_verp(fromaddr)
         assert_that(pids, is_(()))
 
-    @fudge.patch('nti.mailer._verp._get_default_sender',
-                             'nti.mailer._verp._get_signer_secret')
+    @Patch('nti.mailer._verp._get_signer_secret', autospec=True)
+    @Patch('nti.mailer._verp._get_default_sender', autospec=True)
     def test_verp_from_recipients_in_site_uses_default_sender_realname(self,
                                                                        mock_find,
                                                                        mock_secret):
-        mock_find.is_callable().returns('Janux <janux@ou.edu>')
-        mock_secret.is_callable().returns('abc123')
+        mock_find.return_value = 'Janux <janux@ou.edu>'
+        mock_secret.return_value = 'abc123'
 
         prin = self.email_addr_principal('foo', 'foo@bar.com')
 
@@ -117,9 +118,9 @@ class TestVerp(CleanUp, unittest.TestCase):
         prin.id = principal_id
         return prin
 
-    @fudge.patch('nti.mailer._verp._get_default_sender',
-                 'nti.mailer._verp._get_signer_secret',
-                 'nti.mailer._verp.get_current_request')
+    @Patch('nti.mailer._verp.get_current_request', autospec=True)
+    @Patch('nti.mailer._verp._get_signer_secret', autospec=True)
+    @Patch('nti.mailer._verp._get_default_sender', autospec=True)
     def test_verp_from_recipients_no_default_sender_realname(self,
                                                              mock_find,
                                                              mock_secret,
@@ -128,13 +129,13 @@ class TestVerp(CleanUp, unittest.TestCase):
         If there's no realname for the default sender, use the
         brand name as a fallback.
         """
-        mock_find.is_callable().returns('janux@ou.edu')
-        mock_secret.is_callable().returns('abc123')
-        request = fudge.Fake('Request')
+        mock_find.return_value = 'janux@ou.edu'
+        mock_secret.return_value = 'abc123'
+
 
         # We'll pass it in the first time through, so this shouldn't
         # be called
-        get_current_request.is_callable().returns(request).times_called(0)
+        #get_current_request.is_callable().returns(request).times_called(0)
 
         # If we have a IDisplayNameGenerator registered for the current site
         # we'll use that for the real name
@@ -149,7 +150,7 @@ class TestVerp(CleanUp, unittest.TestCase):
             addr = verp_from_recipients('no-reply@nextthought.com',
                                         (prin,),
                                         default_key='alpha.nextthought.com',
-                                        request=request)
+                                        request=Mock())
 
             name, email = parseaddr(addr)
 
@@ -157,11 +158,10 @@ class TestVerp(CleanUp, unittest.TestCase):
             assert_that(email, is_('no-reply+foo.UGQXuA@nextthought.com'))
 
             # Use current request implicitly
-            get_current_request.times_called(1)
             addr = verp_from_recipients('no-reply@nextthought.com',
                                         (prin,),
                                         default_key='alpha.nextthought.com')
-
+            get_current_request.assert_called_once()
             name, email = parseaddr(addr)
 
             assert_that(name, is_('Brand XYZ'))
@@ -172,7 +172,7 @@ class TestVerp(CleanUp, unittest.TestCase):
         addr = verp_from_recipients('no-reply@nextthought.com',
                                     (prin,),
                                     default_key='alpha.nextthought.com',
-                                    request=request)
+                                    request=Mock())
 
         name, email = parseaddr(addr)
 

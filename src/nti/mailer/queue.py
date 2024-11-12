@@ -117,7 +117,7 @@ class _AbstractMailerProcess(object):
         self.queue_path = queue_path
         self.mail_dir = Maildir(self.queue_path, create=True)
 
-    def _maildir_factory(self, *args, **kwargs):
+    def _maildir_factory(self, *_args, **_kwargs):
         return self.mail_dir
 
     def _do_process_queue(self):
@@ -216,7 +216,7 @@ class MailerWatcher(_AbstractMailerProcess):
     max_process_frequency_seconds = _MINIMUM_DEBOUNCE_INTERVAL_SECONDS
 
     def __init__(self, *args, **kwargs):
-        super(MailerWatcher, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         hub = gevent.get_hub()
         to_watch = os.path.join(self.queue_path, 'new')
         # TODO: Do we need to get abspath() on to_watch? I (JAM)
@@ -338,6 +338,8 @@ def run_process(): # pragma: no cover
 
     _mailer_factory = SESMailer
     if arguments.sesregion:
+        # pylint:disable=redefined-variable-type
+        # pylint:disable=unnecessary-lambda-assignment
         _mailer_factory = lambda: SESMailer(arguments.sesregion)
 
     app = MailerWatcher(_mailer_factory, arguments.queue_path)

@@ -16,7 +16,7 @@ class AbstractPrincipal(object):
     id = 'id'
     email = 'sjohnson@nextthought.com'
 
-    def __conform__(self, iface):
+    def __conform__(self, _iface): # pylint:disable=bad-dunder-name
         return self
 
 

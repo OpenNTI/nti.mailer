@@ -6,11 +6,10 @@ Implementation of the :class:`nti.mailer.interfaces.IVERP` protocol.
 .. $Id$
 """
 
-from __future__ import print_function, absolute_import, division
-
 
 import zlib
 import struct
+from urllib import parse as urllib_parse
 
 from itsdangerous.exc import BadSignature
 
@@ -24,7 +23,6 @@ from zope.component.hooks import getSite
 
 from zope.security.interfaces import IPrincipal
 
-from six.moves import urllib_parse
 
 from nti.mailer._compat import parseaddr
 from nti.mailer._compat import formataddr
@@ -166,7 +164,7 @@ def _sign(signer, principal_ids):
     return _to_bytes(principal_ids) + signer.sep + sig
 
 
-def realname_from_recipients(fromaddr, recipients, request=None):
+def realname_from_recipients(fromaddr, recipients, request=None): # pylint:disable=unused-argument
     realname, addr = parseaddr(fromaddr)
     if not realname and not addr:
         raise ValueError("Invalid fromaddr", fromaddr)
@@ -216,7 +214,7 @@ def verp_from_recipients(fromaddr,
 
 
 def principal_ids_from_verp(fromaddr,
-                            request=None,
+                            request=None, # pylint:disable=unused-argument
                             default_key=None):
     if not fromaddr or '+' not in fromaddr:
         return ()
@@ -243,7 +241,6 @@ def principal_ids_from_verp(fromaddr,
         pids = _to_native_string(pids)
     except BadSignature:
         return ()
-    else:
-        return pids.split(',')
+    return pids.split(',')
 
 interface.moduleProvides(IVERP)

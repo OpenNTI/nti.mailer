@@ -30,13 +30,14 @@ __all__ = (
 )
 
 # pylint:disable=inherit-non-class,no-self-argument,no-method-argument
+# pylint:disable=too-many-positional-arguments
 
 from pyramid_mailer.interfaces import IMailer
 from repoze.sendmail.interfaces import IMailDelivery
 from nti.schema.field import TextLine
 
 
-logger = __import__('logging').getLogger(__name__)
+
 
 
 class IPrincipalEmailValidation(interface.Interface):
@@ -64,7 +65,7 @@ class IEmailAddressable(interface.Interface):
     example.
     """
 
-    email = interface.Attribute(u"The email address to send to")
+    email = interface.Attribute("The email address to send to")
 
 
 @interface.implementer(IEmailAddressable,
@@ -262,10 +263,10 @@ class IMailerPolicy(interface.Interface):
     """
 
     # Deprecated
-    DEFAULT_EMAIL_SENDER = TextLine(title=u'An optional email sender',
-                                    description=u'An email address used to send emails to users'
-                                                u'such as account creation, both on behalf of this'
-                                                u'object as well as from other places. Optional.',
+    DEFAULT_EMAIL_SENDER = TextLine(title='An optional email sender',
+                                    description='An email address used to send emails to users'
+                                                'such as account creation, both on behalf of this'
+                                                'object as well as from other places. Optional.',
                                     required=False,
                                     default=None)
 

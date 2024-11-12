@@ -11,6 +11,7 @@ import os
 from tempfile import mkdtemp
 
 import unittest
+from unittest.mock import Mock
 
 import email
 
@@ -19,12 +20,13 @@ from hamcrest import is_
 from hamcrest import has_length
 from hamcrest import none
 
-import fudge
+
 
 
 from repoze.sendmail.delivery import QueuedMailDelivery
 from repoze.sendmail.maildir import Maildir
 
+# pylint:disable-next=import-private-name
 from repoze.sendmail.tests.test_delivery import _makeMailerStub
 
 from nti.mailer.queue import SESMailer
@@ -38,7 +40,7 @@ MSG_BYTES = MSG_STRING if isinstance(MSG_STRING, bytes) else MSG_STRING.encode('
 class TestMailer(unittest.TestCase):
 
     def setUp(self):
-        super(TestMailer, self).setUp()
+        super().setUp()
         self.message = email.message_from_string(MSG_STRING)
 
     def test_region(self):
@@ -72,8 +74,8 @@ class TestMailer(unittest.TestCase):
         def send_raw_email(*_args, **kwargs):
             send_kwargs.update(kwargs)
 
-        mailer.client = fudge.Fake('SESClient')
-        mailer.client.provides('send_raw_email').calls(send_raw_email)
+        mailer.client = Mock() #fudge.Fake('SESClient')
+        mailer.client.send_raw_email.side_effect = send_raw_email
 
         mailer.send('from', ('to',), self.message)
 
@@ -164,7 +166,7 @@ class TestMailerWatcher(TestLoopingMailerProcess):
             test_one_shot = True
 
             def _youve_got_mail(self):
-                super(FUT, self)._youve_got_mail()
+                super()._youve_got_mail()
                 # Deterministically close this down now so the event
                 # loop can exit, but only after we've actually
                 # processed something (this prevents hardcoding some
@@ -174,10 +176,10 @@ class TestMailerWatcher(TestLoopingMailerProcess):
                     self.close()
             def _do_process_queue(self):
                 self.test_queue_proc_count += 1
-                super(FUT, self)._do_process_queue()
+                super()._do_process_queue()
             def _timer_fired(self):
                 self.test_timer_fired_count += 1
-                super(FUT, self)._timer_fired()
+                super()._timer_fired()
 
         return FUT
 

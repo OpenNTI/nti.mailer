@@ -1,5 +1,6 @@
 import codecs
-from setuptools import setup, find_packages
+from setuptools import setup
+from setuptools import find_namespace_packages
 
 entry_points = {
     'console_scripts': [
@@ -10,7 +11,6 @@ entry_points = {
 }
 
 TESTS_REQUIRE = [
-    'fudge',
     'nti.testing',
     'zope.testrunner',
     'nti.app.pyramid-zope >= 0.0.3',
@@ -44,23 +44,20 @@ setup(
         'Operating System :: OS Independent',
         'Development Status :: 3 - Alpha',
         'License :: OSI Approved :: Apache Software License',
-        'Programming Language :: Python :: 2',
-        'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3.8',
-        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3 :: Only',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
+        'Programming Language :: Python :: 3.13',
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: Implementation :: PyPy',
     ],
     url="https://github.com/OpenNTI/nti.mailer",
     zip_safe=True,
-    packages=find_packages('src'),
+    packages=find_namespace_packages('src'),
     package_dir={'': 'src'},
     include_package_data=True,
-    namespace_packages=['nti'],
-    tests_require=TESTS_REQUIRE,
     install_requires=[
         'gevent',
         'setuptools',
@@ -69,15 +66,11 @@ setup(
         'itsdangerous',
         'nti.schema',
         'repoze.sendmail',
-        # premailer dropped Python 2 support in version 3.7;
-        # unfortunately, they don't have the proper ``python_requires`` metadata
-        # to let installers know this.
-        'premailer < 3.7.0; python_version == "2.7"',
-        'premailer >= 3.7.0; python_version != "2.7"',
+        'premailer >= 3.7.0',
         # The < 2.0 part is from nti.app.pyramid_zope, a test
         # dependency. But older released versions on PyPI (< 0.0.3)
         # do not specify this correctly.
-        'pyramid < 2.0',
+        #'pyramid < 2.0',
         'pyramid_mailer',
         'six',
         'ZODB',
@@ -104,5 +97,5 @@ setup(
         ],
     },
     entry_points=entry_points,
-    python_requires=">=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5",
+    python_requires=">=3.10",
 )

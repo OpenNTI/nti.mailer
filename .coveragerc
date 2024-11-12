@@ -19,3 +19,5 @@ exclude_lines =
     raise AssertionError
     Python 2
     if __name__ == .__main__.:
+precision = 2
+fail_under = 100

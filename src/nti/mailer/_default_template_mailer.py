@@ -23,7 +23,6 @@ from pyramid.threadlocal import get_current_request
 
 from pyramid_mailer.message import Message
 
-from six import string_types
 
 from zope import component
 from zope import interface
@@ -70,7 +69,7 @@ def _get_renderer_spec_and_package(base_template,
                                    extension,
                                    package=None,
                                    level=3):
-    if isinstance(package, string_types):
+    if isinstance(package, str):
         package = dottedname.resolve(package)
 
     # Did they give us a package, either in the name or as an argument?
@@ -137,13 +136,14 @@ def _as_recipient_list(recipients):
         for recipient in recipients:
             # If we have a principal object, explicitly check if `is_valid_email`.
             email_validation = IPrincipalEmailValidation(recipient, None)
+            # pylint:disable=too-many-function-args
             if      email_validation is not None \
                 and not email_validation.is_valid_email():
                 continue
             # Convert any IEmailAddressable into their email, and strip
             # empty strings
             recipient = getattr(IEmailAddressable(recipient, recipient), 'email', recipient)
-            if isinstance(recipient, string_types) and recipient:
+            if isinstance(recipient, str) and recipient:
                 result.append(recipient)
     return result
 
@@ -167,8 +167,9 @@ def _make_template_args(
         if extension == text_template_extension and text_template_extension != '.txt'
         else 'context'
     )
-    result = {}
-    result[the_context_name] = context
+    result = {
+        the_context_name: context
+    }
     result.update(existing_template_args)
 
     # Because the "correct" name for the context variable cannot be known
@@ -223,7 +224,8 @@ def create_simple_html_text_email(base_template,
         will be used. (If both *context* or ``request.context`` and a template argument value
         are given, they should be the same object.)
     """
-
+    # XXX: Simplify!
+    # pylint:disable=too-complex,too-many-locals,too-many-branches,too-many-positional-arguments
     recipients = _as_recipient_list(recipients)
 
     if not recipients:
@@ -375,10 +377,13 @@ def queue_simple_html_text_email(*args, **kwargs):
     Transactionally queues an email for sending. The email has both a
     plain text and an HTML version.
 
-    :keyword text_template_extension: The filename extension for the plain text template. Valid values
-            are ".txt" for Chameleon templates (this is the default and preferred version) and ".mak" for
-            Mako templates. Note that if you use Mako, the usual ``context`` argument is renamed to ``nti_context``,
-            as ``context`` is a reserved word in Mako.
+    :keyword text_template_extension:
+        The filename extension for the plain text template. Valid
+        values are ".txt" for Chameleon templates (this is the default
+        and preferred version) and ".mak" for Mako templates. Note
+        that if you use Mako, the usual ``context`` argument is
+        renamed to ``nti_context``, as ``context`` is a reserved word
+        in Mako.
 
     :return: The :class:`pyramid_mailer.message.Message` we sent.
     """
