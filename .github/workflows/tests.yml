@@ -12,7 +12,7 @@ jobs:
     strategy:
       matrix:
         python-version:
-          - "pypy-3.10"
+          - "3.10"
           - "3.11"
           - "3.12"
           - "3.13"
@@ -38,7 +38,7 @@ jobs:
         python -m pip install -v -U -e ".${{ matrix.extras }}"
     - name: Test
       run: |
-        python -m coverage run -m zope.testrunner --test-path=src  --auto-color --auto-progress
+        coverage run -m zope.testrunner -v --test-path=src  --color --progress --slow-test=3
         coverage run -a -m sphinx -b doctest -d docs/_build/doctrees docs docs/_build/doctests
         coverage combine || true
         coverage report -i || true
