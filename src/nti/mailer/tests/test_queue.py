@@ -196,7 +196,7 @@ class TestMailerWatcher(TestLoopingMailerProcess):
             # 0.5 seems to be enough. But for libev watchers on GHA,
             # we need a full second. Do this ahead of time, non-blocking,
             # so the stat watcher has a chance to get a before-time
-            gevent.sleep(0.5)
+            gevent.sleep(1.5)
             self._queue_two_messages()
 
 

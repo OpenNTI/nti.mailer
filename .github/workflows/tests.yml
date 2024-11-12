@@ -38,7 +38,7 @@ jobs:
         python -m pip install -v -U -e ".${{ matrix.extras }}"
     - name: Test
       run: |
-        coverage run -m zope.testrunner -v --test-path=src  --color --progress --slow-test=3
+        coverage run -m zope.testrunner -v --test-path=src  --color --auto-progress --slow-test=3
         coverage run -a -m sphinx -b doctest -d docs/_build/doctrees docs docs/_build/doctests
         coverage combine || true
         coverage report -i || true
