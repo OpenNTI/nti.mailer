@@ -2,8 +2,8 @@
  Changes
 =========
 
-1.0.0 (unreleased)
-====================
+1.0.0 (2024-11-12)
+==================
 
 - Drop support for Python < 3.10.
 - Use native namespace packages.
