@@ -36,7 +36,7 @@ MSG_BYTES = MSG_STRING if isinstance(MSG_STRING, bytes) else MSG_STRING.encode('
 
 def _makeMailerStub(*args, **kw):
     class MailerStub:
-        def __init__(self, *args, **kw):
+        def __init__(self, *_args, **_kw):
             self.sent_messages = []
 
         def send(self, fromaddr, toaddrs, message):
