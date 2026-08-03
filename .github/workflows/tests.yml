@@ -16,6 +16,7 @@ jobs:
           - "3.11"
           - "3.12"
           - "3.13"
+          - "3.14"
         extras:
           - "[test,docs]"
         # include:
@@ -35,7 +36,7 @@ jobs:
       run: |
         python -m pip install -U pip setuptools wheel
         python -m pip install -U coverage
-        python -m pip install -v -U -e ".${{ matrix.extras }}"
+        python -m pip install -v -U ".${{ matrix.extras }}"
     - name: Test
       run: |
         coverage run -m zope.testrunner -v --test-path=src  --color --auto-progress --slow-test=3
@@ -43,7 +44,7 @@ jobs:
         coverage combine || true
         coverage report -i || true
     - name: Lint
-      if: matrix.python-version == '3.12'
+      if: matrix.python-version == '3.14'
       run: |
         python -m pip install -U pylint
         pylint src

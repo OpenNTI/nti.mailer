@@ -50,6 +50,7 @@ setup(
         'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: 3.12',
         'Programming Language :: Python :: 3.13',
+        'Programming Language :: Python :: 3.14',
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: Implementation :: PyPy',
     ],
@@ -60,7 +61,9 @@ setup(
     include_package_data=True,
     install_requires=[
         'gevent',
-        'setuptools',
+        # Need older setuptools because pyramid relies on
+        # pkg_resources, which was removed in 82.
+        'setuptools < 82',
         'boto3',
         'BTrees',
         'itsdangerous',

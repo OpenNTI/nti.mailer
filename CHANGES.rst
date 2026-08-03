@@ -2,11 +2,13 @@
  Changes
 =========
 
-1.0.1 (unreleased)
+1.1.0 (unreleased)
 ==================
 
-- Nothing changed yet.
-
+- Add support for Python 3.14.
+- Pin our ``setuptools`` runtime dependency at < 82, because our
+  ``pyramide`` dependency still depends on ``pkg_resources`` which was
+  removed at that version.
 
 1.0.0 (2024-11-12)
 ==================
